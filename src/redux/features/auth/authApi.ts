@@ -2,42 +2,18 @@
 
 import { baseApi } from "../../api/baseApi";
 import type {
+  AuthRequest,
   AuthResponse,
-  LoginRequest,
-  RegisterRequest,
   User,
 } from "./auth.types";
 
-interface ProfileResponse {
-  success: boolean;
-  message: string;
-  data: User;
-}
-
 export const authApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    register: builder.mutation<AuthResponse, RegisterRequest>({
-      query: (body) => ({
-        url: "/auth/register",
-        method: "POST",
-        body,
-      }),
-      invalidatesTags: ["Auth", "User"],
-    }),
-
-    login: builder.mutation<AuthResponse, LoginRequest>({
+    login: builder.mutation<AuthResponse, AuthRequest>({
       query: (body) => ({
         url: "/auth/login",
         method: "POST",
         body,
-      }),
-      invalidatesTags: ["Auth", "User"],
-    }),
-
-    logout: builder.mutation<AuthResponse, void>({
-      query: () => ({
-        url: "/auth/logout",
-        method: "POST",
       }),
       invalidatesTags: ["Auth", "User"],
     }),
@@ -47,11 +23,14 @@ export const authApi = baseApi.injectEndpoints({
         url: "/users/me",
         method: "GET",
       }),
-
       providesTags: ["User"],
 
       transformResponse: (
-        response: ProfileResponse,
+        response: {
+          success: boolean;
+          message: string;
+          data: User;
+        },
       ) => {
         return response.data;
       },
@@ -60,8 +39,6 @@ export const authApi = baseApi.injectEndpoints({
 });
 
 export const {
-  useRegisterMutation,
   useLoginMutation,
-  useLogoutMutation,
   useGetMyProfileQuery,
 } = authApi;

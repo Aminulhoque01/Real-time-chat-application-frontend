@@ -8,21 +8,16 @@ export interface User {
   lastSeen?: string;
 }
 
-export interface AuthResponse {
-  success: boolean;
-  message: string;
-  data?: {
-    user: User;
-  };
-}
-
-export interface RegisterRequest {
+export interface AuthRequest {
   phone: string;
-  password: string;
   name: string;
 }
 
-export interface LoginRequest {
-  phone: string;
-  password: string;
+export interface AuthResponse {
+  success: boolean;
+  message: string;
+  data: {
+    token: string;
+    user: User;
+  };
 }

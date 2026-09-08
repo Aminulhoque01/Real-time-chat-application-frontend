@@ -4,37 +4,41 @@ import type { User } from "./auth.types";
 
 interface AuthState {
   user: User | null;
-  isAuthenticated: boolean;
+  token: string | null;
 }
 
 const initialState: AuthState = {
   user: null,
-  isAuthenticated: false,
+  token: null,
 };
 
 const authSlice = createSlice({
   name: "auth",
+
   initialState,
 
   reducers: {
     setCredentials: (
       state,
-      action: PayloadAction<User>,
+      action: PayloadAction<{
+        user: User;
+        token: string;
+      }>,
     ) => {
-      state.user = action.payload;
-      state.isAuthenticated = true;
+      state.user = action.payload.user;
+      state.token = action.payload.token;
     },
 
-    clearCredentials: (state) => {
+    logout: (state) => {
       state.user = null;
-      state.isAuthenticated = false;
+      state.token = null;
     },
   },
 });
 
 export const {
   setCredentials,
-  clearCredentials,
+  logout,
 } = authSlice.actions;
 
 export default authSlice.reducer;

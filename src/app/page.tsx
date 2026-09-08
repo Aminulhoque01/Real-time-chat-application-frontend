@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
@@ -13,10 +15,12 @@ export default function Home() {
         <p className="mt-3 text-sm leading-6 text-slate-400">
           Real-time messaging made simple, fast and beautiful.
         </p>
-
-        <button className="mt-8 w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500 active:scale-[0.98]">
-          Get Started
-        </button>
+      <Link href="/login">
+      
+              <button className="mt-8 w-full rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500 active:scale-[0.98]">
+                Get Started
+              </button>
+      </Link>
       </div>
     </main>
   );
