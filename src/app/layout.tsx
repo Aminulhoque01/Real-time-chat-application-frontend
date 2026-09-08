@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+
 import "./globals.css";
+import ReduxProvider from "../redux/provider";
+
+
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -13,7 +17,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <ReduxProvider>{children}</ReduxProvider>
+      </body>
     </html>
   );
 }
