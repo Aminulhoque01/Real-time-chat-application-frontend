@@ -8,6 +8,8 @@ import ChatUI from "./ChatUI";
 import { useAppSelector } from "@/src/redux/hooks";
 
 import { useGetConversationsQuery } from "@/src/redux/features/conversation/conversationApi";
+import { useSendMessageMutation } from "@/src/redux/features/message/messageApi";
+
 
 export default function ChatLayout() {
   const user = useAppSelector(
@@ -20,6 +22,9 @@ export default function ChatLayout() {
 
   const [selectedConversationId, setSelectedConversationId] =
     useState<string | null>(null);
+
+   const [sendMessage, { isLoading: isSending }] =
+  useSendMessageMutation();
 
   const [isSidebarOpen, setIsSidebarOpen] =
     useState(false);
@@ -45,18 +50,42 @@ export default function ChatLayout() {
     setIsSidebarOpen(false);
   };
 
-  const handleSendMessage = (message: string) => {
-    if (!selectedConversationId) {
-      return;
-    }
+  //  const handleSendMessage = async (message: string) => {
+  //   if (!selectedConversationId || !message.trim()) {
+  //     return;
+  //   }
 
-    console.log("Send message:", {
-      conversationId: selectedConversationId,
-      message,
-    });
+  //   try {
+  //     await sendMessage({
+  //       conversationId: selectedConversationId,
+  //       text: message.trim(),
+  //     }).unwrap();
+  //   } catch (error) {
+  //     console.error("Failed to send message:", error);
+  //   }
+  // };
 
-    // Socket/API send logic পরে এখানে connect করবো
-  };
+  const handleSendMessage = async (message: string) => {
+      if (!selectedConversationId || !message.trim()) {
+        return;
+      }
+
+      console.log("SENDING MESSAGE:", {
+        conversationId: selectedConversationId,
+        text: message.trim(),
+      });
+
+      try {
+        const result = await sendMessage({
+          conversationId: selectedConversationId,
+          text: message.trim(),
+        }).unwrap();
+
+        console.log("MESSAGE SENT SUCCESSFULLY:", result);
+      } catch (error) {
+        console.error("MESSAGE SEND ERROR:", error);
+      }
+    };
 
   return (
     <div className="relative flex h-screen min-h-0 overflow-hidden bg-slate-50">

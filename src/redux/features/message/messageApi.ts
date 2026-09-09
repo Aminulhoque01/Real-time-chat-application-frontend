@@ -1,8 +1,5 @@
 import { baseApi } from "@/src/redux/api/baseApi";
-import type {
-  Message,
-  MessagesResponse,
-} from "./message.types";
+import type { Message, MessagesResponse } from "./message.types";
 
 interface GetMessagesParams {
   conversationId: string;
@@ -24,15 +21,8 @@ interface SingleMessageResponse {
 
 export const messageApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
-    getMessages: builder.query<
-      MessagesResponse["data"],
-      GetMessagesParams
-    >({
-      query: ({
-        conversationId,
-        page = 1,
-        limit = 30,
-      }) => ({
+    getMessages: builder.query<MessagesResponse["data"], GetMessagesParams>({
+      query: ({ conversationId, page = 1, limit = 30 }) => ({
         url: `/message/${conversationId}/messages`,
         method: "GET",
         params: {
@@ -41,15 +31,9 @@ export const messageApi = baseApi.injectEndpoints({
         },
       }),
 
-      transformResponse: (
-        response: MessagesResponse,
-      ) => response.data,
+      transformResponse: (response: MessagesResponse) => response.data,
 
-      providesTags: (
-        result,
-        error,
-        { conversationId },
-      ) => [
+      providesTags: (result, error, { conversationId }) => [
         {
           type: "Message",
           id: conversationId,
@@ -57,25 +41,38 @@ export const messageApi = baseApi.injectEndpoints({
       ],
     }),
 
-    sendMessage: builder.mutation<
-      Message,
-      SendMessageRequest
-    >({
+    sendMessage: builder.mutation<Message, SendMessageRequest>({
       query: (body) => ({
         url: "/message",
         method: "POST",
         body,
       }),
 
-      transformResponse: (
-        response: SingleMessageResponse,
-      ) => response.data,
+      transformResponse: (response: SingleMessageResponse) => response.data,
 
-      invalidatesTags: (
-        result,
-        error,
-        { conversationId },
-      ) => [
+      async onQueryStarted({ conversationId }, { dispatch, queryFulfilled }) {
+        try {
+          const { data: newMessage } = await queryFulfilled;
+
+          dispatch(
+            messageApi.util.updateQueryData(
+              "getMessages",
+              {
+                conversationId,
+                page: 1,
+                limit: 30,
+              },
+              (draft) => {
+                draft.messages.push(newMessage);
+              },
+            ),
+          );
+        } catch (error) {
+          console.error("Failed to update message cache:", error);
+        }
+      },
+
+      invalidatesTags: (result, error, { conversationId }) => [
         {
           type: "Message",
           id: conversationId,
@@ -86,7 +83,4 @@ export const messageApi = baseApi.injectEndpoints({
   }),
 });
 
-export const {
-  useGetMessagesQuery,
-  useSendMessageMutation,
-} = messageApi;
+export const { useGetMessagesQuery, useSendMessageMutation } = messageApi;

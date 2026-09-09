@@ -126,6 +126,8 @@ export default function ChatUI({
       <MessageComposer
         onSend={onSendMessage}
       />
+
+      
     </main>
   );
 }
