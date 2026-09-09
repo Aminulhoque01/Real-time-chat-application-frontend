@@ -1,6 +1,4 @@
-
-
-import { baseApi } from "../../api/baseApi";
+import { baseApi } from "@/src/redux/api/baseApi";
 import type {
   Message,
   MessagesResponse,
@@ -10,6 +8,18 @@ interface GetMessagesParams {
   conversationId: string;
   page?: number;
   limit?: number;
+}
+
+interface SendMessageRequest {
+  conversationId: string;
+  text?: string;
+  replyTo?: string;
+}
+
+interface SingleMessageResponse {
+  success: boolean;
+  message: string;
+  data: Message;
 }
 
 export const messageApi = baseApi.injectEndpoints({
@@ -46,9 +56,37 @@ export const messageApi = baseApi.injectEndpoints({
         },
       ],
     }),
+
+    sendMessage: builder.mutation<
+      Message,
+      SendMessageRequest
+    >({
+      query: (body) => ({
+        url: "/message",
+        method: "POST",
+        body,
+      }),
+
+      transformResponse: (
+        response: SingleMessageResponse,
+      ) => response.data,
+
+      invalidatesTags: (
+        result,
+        error,
+        { conversationId },
+      ) => [
+        {
+          type: "Message",
+          id: conversationId,
+        },
+        "Conversation",
+      ],
+    }),
   }),
 });
 
 export const {
   useGetMessagesQuery,
+  useSendMessageMutation,
 } = messageApi;
