@@ -9,6 +9,7 @@ import { useAppSelector } from "@/src/redux/hooks";
 
 import { useGetConversationsQuery } from "@/src/redux/features/conversation/conversationApi";
 import { useSendMessageMutation } from "@/src/redux/features/message/messageApi";
+import useChatSocket from "@/src/hooks/useChatSocket";
 
 
 export default function ChatLayout() {
@@ -64,6 +65,10 @@ export default function ChatLayout() {
   //     console.error("Failed to send message:", error);
   //   }
   // };
+
+  useChatSocket({
+    conversationId: selectedConversationId,
+  });
 
   const handleSendMessage = async (message: string) => {
       if (!selectedConversationId || !message.trim()) {
