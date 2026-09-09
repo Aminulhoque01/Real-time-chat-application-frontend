@@ -14,68 +14,107 @@ import type {
 interface ChatUIProps {
   conversation: Conversation | null;
   currentUserId?: string;
+
   onOpenSidebar: () => void;
+
   onSendMessage?: (message: string) => void;
+
+  onTypingStart?: () => void;
+  onTypingStop?: () => void;
+
   isTyping?: boolean;
+  typingUserName?: string;
 }
+
+// ======================================================
+// GET OTHER PARTICIPANT
+// ======================================================
 
 const getOtherParticipant = (
   conversation: Conversation,
   currentUserId?: string,
 ): ConversationUser | null => {
-  if (conversation.type !== "direct") {
+  // Group conversation হলে single "other user" থাকবে না
+  if (conversation.type === "group") {
     return null;
   }
 
-  return (
+  const otherParticipant =
     conversation.participants.find(
-      (participant) => participant._id !== currentUserId,
-    ) ?? null
-  );
+      (participant) =>
+        participant._id !== currentUserId,
+    );
+
+  return otherParticipant ?? null;
 };
+
+// ======================================================
+// GET CONVERSATION NAME
+// ======================================================
 
 const getConversationName = (
   conversation: Conversation,
   currentUserId?: string,
 ): string => {
+  // Group name
   if (conversation.type === "group") {
-    return conversation.name || "Group";
+    return conversation.name?.trim() || "Group";
   }
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+  // Direct chat → other person's name
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-  return otherUser?.name || otherUser?.phone || "Unknown";
+  return (
+    otherUser?.name?.trim() ||
+    otherUser?.phone ||
+    "Unknown"
+  );
 };
+
+// ======================================================
+// GET CONVERSATION AVATAR
+// ======================================================
 
 const getConversationAvatar = (
   conversation: Conversation,
   currentUserId?: string,
 ): string | null => {
+  // Group chat
   if (conversation.type === "group") {
     return null;
   }
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
   return otherUser?.avatar || null;
 };
+
+// ======================================================
+// CHAT UI
+// ======================================================
 
 export default function ChatUI({
   conversation,
   currentUserId,
   onOpenSidebar,
   onSendMessage,
+  onTypingStart,
+  onTypingStop,
   isTyping = false,
+  typingUserName,
 }: ChatUIProps) {
-  /*
-   * No conversation selected
-   */
+  // ====================================================
+  // NO CONVERSATION SELECTED
+  // ====================================================
+
   if (!conversation) {
     return (
       <main className="flex min-h-0 flex-1 flex-col bg-white">
@@ -84,50 +123,96 @@ export default function ChatUI({
     );
   }
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+  // ====================================================
+  // CONVERSATION INFORMATION
+  // ====================================================
 
-  const name = getConversationName(
-    conversation,
-    currentUserId,
-  );
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-  const avatar = getConversationAvatar(
-    conversation,
-    currentUserId,
-  );
+  const conversationName =
+    getConversationName(
+      conversation,
+      currentUserId,
+    );
+
+  const conversationAvatar =
+    getConversationAvatar(
+      conversation,
+      currentUserId,
+    );
+
+  // ====================================================
+  // TYPING NAME
+  // ====================================================
+
+  const displayTypingName =
+    typingUserName?.trim() || "Someone";
+
+  // ====================================================
+  // UI
+  // ====================================================
 
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-white">
-      {/* Header */}
+      {/* ==================================================
+          CHAT HEADER
+      ================================================== */}
+
       <ChatHeader
         conversation={conversation}
-        name={name}
-        avatar={avatar}
+        name={conversationName}
+        avatar={conversationAvatar}
         otherUser={otherUser}
         onOpenSidebar={onOpenSidebar}
       />
 
-      {/* Messages */}
+      {/* ==================================================
+          MESSAGE AREA
+      ================================================== */}
+
       <div className="min-h-0 flex-1 overflow-hidden">
         <MessageList
           conversationId={conversation._id}
         />
       </div>
 
-      {/* Typing indicator */}
-      <div className="min-h-[32px] shrink-0">
-        {isTyping && <TypingIndicator />}
+      {/* ==================================================
+          TYPING INDICATOR
+      ================================================== */}
+
+      <div
+        className={`
+          min-h-[32px]
+          shrink-0
+          transition-all
+          duration-200
+          ${
+            isTyping
+              ? "opacity-100"
+              : "opacity-0"
+          }
+        `}
+      >
+        {isTyping && (
+          <TypingIndicator
+            name={displayTypingName}
+          />
+        )}
       </div>
 
-      {/* Composer */}
+      {/* ==================================================
+          MESSAGE COMPOSER
+      ================================================== */}
+
       <MessageComposer
         onSend={onSendMessage}
+        onTypingStart={onTypingStart}
+        onTypingStop={onTypingStop}
       />
-
-      
     </main>
   );
 }

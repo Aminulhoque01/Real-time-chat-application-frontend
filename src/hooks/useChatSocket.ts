@@ -4,33 +4,32 @@ import { useEffect, useRef } from "react";
 import { io, Socket } from "socket.io-client";
 
 import { useAppDispatch, useAppSelector } from "@/src/redux/hooks";
-
 import { messageApi } from "@/src/redux/features/message/messageApi";
+
 import type { Message } from "@/src/redux/features/message/message.types";
 
 interface ChatSocketProps {
   conversationId: string | null;
+
+  onTypingStart?: (userId: string) => void;
+  onTypingStop?: (userId: string) => void;
 }
 
 export default function useChatSocket({
   conversationId,
+  onTypingStart,
+  onTypingStop,
 }: ChatSocketProps) {
   const dispatch = useAppDispatch();
 
-  const token = useAppSelector(
-    (state) => state.auth.token,
-  );
+  const token = useAppSelector((state) => state.auth.token);
 
   const socketRef = useRef<Socket | null>(null);
 
-  const joinedConversationRef = useRef<
-    string | null
-  >(null);
+  const joinedConversationRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
+    if (!token) return;
 
     const socketUrl =
       process.env.NEXT_PUBLIC_SOCKET_URL ||
@@ -45,15 +44,8 @@ export default function useChatSocket({
 
     socketRef.current = socket;
 
-    // ==============================
-    // CONNECT
-    // ==============================
-
     socket.on("connect", () => {
-      console.log(
-        "Socket connected:",
-        socket.id,
-      );
+      console.log("Socket connected:", socket.id);
 
       if (conversationId) {
         socket.emit("conversation:join", {
@@ -70,10 +62,6 @@ export default function useChatSocket({
       }
     });
 
-    // ==============================
-    // JOINED
-    // ==============================
-
     socket.on(
       "conversation:joined",
       ({ conversationId }) => {
@@ -84,23 +72,16 @@ export default function useChatSocket({
       },
     );
 
-    // ==============================
-    // CONVERSATION ERROR
-    // ==============================
+    socket.on("conversation:error", (error) => {
+      console.error(
+        "Conversation error:",
+        error,
+      );
+    });
 
-    socket.on(
-      "conversation:error",
-      (error) => {
-        console.error(
-          "Conversation error:",
-          error,
-        );
-      },
-    );
-
-    // ==============================
+    // =========================
     // NEW MESSAGE
-    // ==============================
+    // =========================
 
     socket.on(
       "message:new",
@@ -133,9 +114,7 @@ export default function useChatSocket({
                     message._id,
                 );
 
-              if (exists) {
-                return;
-              }
+              if (exists) return;
 
               draft.messages.push(message);
 
@@ -154,9 +133,51 @@ export default function useChatSocket({
       },
     );
 
-    // ==============================
-    // CONNECTION ERROR
-    // ==============================
+    // =========================
+    // TYPING START
+    // =========================
+
+    socket.on(
+      "typing:start",
+      ({
+        conversationId: typingConversationId,
+        userId,
+      }) => {
+        if (
+          typingConversationId !==
+          conversationId
+        ) {
+          return;
+        }
+
+        onTypingStart?.(userId);
+      },
+    );
+
+    // =========================
+    // TYPING STOP
+    // =========================
+
+    socket.on(
+      "typing:stop",
+      ({
+        conversationId: typingConversationId,
+        userId,
+      }) => {
+        if (
+          typingConversationId !==
+          conversationId
+        ) {
+          return;
+        }
+
+        onTypingStop?.(userId);
+      },
+    );
+
+    // =========================
+    // SOCKET ERROR
+    // =========================
 
     socket.on(
       "connect_error",
@@ -168,10 +189,6 @@ export default function useChatSocket({
       },
     );
 
-    // ==============================
-    // DISCONNECT
-    // ==============================
-
     socket.on(
       "disconnect",
       (reason) => {
@@ -181,10 +198,6 @@ export default function useChatSocket({
         );
       },
     );
-
-    // ==============================
-    // CLEANUP
-    // ==============================
 
     return () => {
       if (joinedConversationRef.current) {
@@ -203,5 +216,41 @@ export default function useChatSocket({
     token,
     conversationId,
     dispatch,
+    onTypingStart,
+    onTypingStop,
   ]);
+
+  // =========================
+  // SEND TYPING START
+  // =========================
+
+  const sendTypingStart = () => {
+    if (!socketRef.current || !conversationId) {
+      return;
+    }
+
+    socketRef.current.emit("typing:start", {
+      conversationId,
+    });
+  };
+
+  // =========================
+  // SEND TYPING STOP
+  // =========================
+
+  const sendTypingStop = () => {
+    if (!socketRef.current || !conversationId) {
+      return;
+    }
+
+    socketRef.current.emit("typing:stop", {
+      conversationId,
+    });
+  };
+
+  return {
+    socket: socketRef.current,
+    sendTypingStart,
+    sendTypingStop,
+  };
 }
