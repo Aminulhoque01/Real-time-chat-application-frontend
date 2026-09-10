@@ -20,16 +20,26 @@ export interface MessageAttachment {
 export interface Message {
   _id: string;
   conversationId: string;
+
   senderId: string | MessageUser;
+
   text: string;
+
   attachments: MessageAttachment[];
+
   replyTo?: Message | string | null;
+
   isEdited?: boolean;
+
   isDeleted?: boolean;
-  deliveredTo?: string[] | MessageUser[];
-  readBy?: string[] | MessageUser[];
+
+  deliveredTo?: string[];
+  readBy?: string[];
+
   reactions?: unknown[];
+
   createdAt: string;
+
   updatedAt: string;
 }
 
