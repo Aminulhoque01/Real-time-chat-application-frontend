@@ -6,12 +6,9 @@ import { io, Socket } from "socket.io-client";
 import { useAppDispatch, useAppSelector } from "@/src/redux/hooks";
 
 import { messageApi } from "@/src/redux/features/message/messageApi";
+import { conversationApi } from "@/src/redux/features/conversation/conversationApi";
 
 import type { Message } from "@/src/redux/features/message/message.types";
-
-// ======================================================
-// TYPES
-// ======================================================
 
 interface ChatSocketProps {
   conversationId: string | null;
@@ -21,10 +18,6 @@ interface ChatSocketProps {
   onTypingStop?: (userId: string) => void;
 }
 
-// ======================================================
-// HOOK
-// ======================================================
-
 export default function useChatSocket({
   conversationId,
   onTypingStart,
@@ -32,37 +25,33 @@ export default function useChatSocket({
 }: ChatSocketProps) {
   const dispatch = useAppDispatch();
 
-  // ====================================================
+  // ==========================================
   // AUTH
-  // ====================================================
+  // ==========================================
 
   const token = useAppSelector((state) => state.auth.token);
 
   const currentUserId = useAppSelector((state) => state.auth.user?._id);
 
-  // ====================================================
-  // SOCKET REF
-  // ====================================================
+  // ==========================================
+  // SOCKET
+  // ==========================================
 
   const socketRef = useRef<Socket | null>(null);
 
   const joinedConversationRef = useRef<string | null>(null);
 
-  // ====================================================
+  // ==========================================
   // SOCKET CONNECTION
-  // ====================================================
+  // ==========================================
 
   useEffect(() => {
-    if (!token) {
+    if (!token || !currentUserId) {
       return;
     }
 
     const socketUrl =
       process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
-
-    // ==================================================
-    // CREATE SOCKET
-    // ==================================================
 
     const socket = io(socketUrl, {
       auth: {
@@ -74,16 +63,16 @@ export default function useChatSocket({
 
     socketRef.current = socket;
 
-    // ==================================================
-    // SOCKET CONNECT
-    // ==================================================
+    // ========================================
+    // CONNECT
+    // ========================================
 
     socket.on("connect", () => {
       console.log("Socket connected:", socket.id);
 
-      // ----------------------------------------------
+      // --------------------------------------
       // Join selected conversation
-      // ----------------------------------------------
+      // --------------------------------------
 
       if (conversationId) {
         socket.emit("conversation:join", {
@@ -94,11 +83,22 @@ export default function useChatSocket({
 
         console.log("Joining conversation:", conversationId);
       }
+
+      // --------------------------------------
+      // Personal room
+      // --------------------------------------
+      //
+      // Backend automatically joins:
+      //
+      // user:${currentUserId}
+      //
+      // No frontend join required.
+      // --------------------------------------
     });
 
-    // ==================================================
+    // ========================================
     // CONVERSATION JOINED
-    // ==================================================
+    // ========================================
 
     socket.on(
       "conversation:joined",
@@ -107,87 +107,95 @@ export default function useChatSocket({
       },
     );
 
-    // ==================================================
+    // ========================================
     // CONVERSATION ERROR
-    // ==================================================
+    // ========================================
 
     socket.on("conversation:error", (error) => {
       console.error("Conversation error:", error);
     });
 
-    // ==================================================
+    // ========================================
     // NEW MESSAGE
-    // ==================================================
+    // ========================================
 
     socket.on("message:new", (message: Message) => {
       console.log("REALTIME MESSAGE RECEIVED:", message);
 
-      // --------------------------------------------
-      // Ignore messages from another conversation
-      // --------------------------------------------
+      // ========================================
+      // NORMALIZE IDS
+      // ========================================
 
-      if (message.conversationId !== conversationId) {
-        return;
-      }
+      const messageConversationId = String(message.conversationId);
 
-      // --------------------------------------------
-      // Get sender ID
-      // --------------------------------------------
+      const selectedConversationId = conversationId
+        ? String(conversationId)
+        : null;
 
-      const senderId =
+      const messageSenderId =
         typeof message.senderId === "string"
           ? message.senderId
           : message.senderId?._id;
 
-      // --------------------------------------------
-      // Mark incoming message as delivered
-      //
-      // IMPORTANT:
-      // We only mark messages from OTHER users.
-      // --------------------------------------------
+      const normalizedSenderId = messageSenderId
+        ? String(messageSenderId)
+        : null;
 
-      if (senderId && senderId !== currentUserId) {
+      const normalizedCurrentUserId = String(currentUserId);
+
+      const isOwnMessage = normalizedSenderId === normalizedCurrentUserId;
+
+      const isCurrentConversation =
+        messageConversationId === selectedConversationId;
+
+      // ========================================
+      // DELIVERY
+      // ========================================
+
+      if (normalizedSenderId && !isOwnMessage) {
         socket.emit("message:delivered", {
           messageId: message._id,
         });
 
-        console.log("Marking message as delivered:", message._id);
+        console.log("Message delivered:", message._id);
       }
 
-      // --------------------------------------------
-      // Update RTK Query cache
-      // --------------------------------------------
+      // ========================================
+      // MESSAGE CACHE
+      // ========================================
+      //
+      // IMPORTANT:
+      //
+      // Don't check isCurrentConversation here.
+      //
+      // Even if another chat is open, we need to
+      // keep this conversation's cached messages
+      // up to date.
+      // ========================================
 
       dispatch(
         messageApi.util.updateQueryData(
           "getMessages",
           {
-            conversationId: conversationId!,
+            conversationId: messageConversationId,
+
             page: 1,
+
             limit: 30,
           },
           (draft) => {
-            // --------------------------------------
-            // Prevent duplicate message
-            // --------------------------------------
-
             const exists = draft.messages.some(
-              (existingMessage) => existingMessage._id === message._id,
+              (existingMessage) =>
+                String(existingMessage._id) === String(message._id),
             );
 
             if (exists) {
               return;
             }
 
-            // --------------------------------------
-            // Add message
-            // --------------------------------------
-
             draft.messages.push(message);
 
-            // --------------------------------------
             // Keep chronological order
-            // --------------------------------------
 
             draft.messages.sort(
               (a, b) =>
@@ -197,80 +205,138 @@ export default function useChatSocket({
           },
         ),
       );
+
+      // ========================================
+      // SIDEBAR CACHE
+      // ========================================
+
+      dispatch(
+        conversationApi.util.updateQueryData(
+          "getConversations",
+          undefined,
+          (draft) => {
+            const conversation = draft.find(
+              (item) => String(item._id) === messageConversationId,
+            );
+
+            if (!conversation) {
+              return;
+            }
+
+            // ----------------------------------
+            // Last message
+            // ----------------------------------
+
+            conversation.lastMessage =
+              message as typeof conversation.lastMessage;
+
+            // ----------------------------------
+            // Updated time
+            // ----------------------------------
+
+            conversation.updatedAt = message.updatedAt || message.createdAt;
+
+            // ----------------------------------
+            // Unread
+            // ----------------------------------
+
+            if (!isOwnMessage && !isCurrentConversation) {
+              conversation.unreadCount = (conversation.unreadCount || 0) + 1;
+            }
+
+            // ----------------------------------
+            // Move conversation to top
+            // ----------------------------------
+
+            const currentIndex = draft.findIndex(
+              (item) => String(item._id) === messageConversationId,
+            );
+
+            if (currentIndex > 0) {
+              const [updatedConversation] = draft.splice(currentIndex, 1);
+
+              if (updatedConversation) {
+                draft.unshift(updatedConversation);
+              }
+            }
+          },
+        ),
+      );
     });
 
-    // ==================================================
+    // ========================================
     // MESSAGE DELIVERY UPDATE
-    // ==================================================
+    // ========================================
 
     socket.on(
       "message:delivery:update",
-      ({ messageId, userId }: { messageId: string; userId: string }) => {
+      ({
+        messageId,
+        conversationId: deliveryConversationId,
+        userId,
+      }: {
+        messageId: string;
+        conversationId: string;
+        userId: string;
+      }) => {
         console.log("MESSAGE DELIVERY UPDATE:", {
           messageId,
+          conversationId: deliveryConversationId,
           userId,
         });
 
-        // --------------------------------------------
-        // No selected conversation
-        // --------------------------------------------
-
-        if (!conversationId) {
-          return;
-        }
-
-        // --------------------------------------------
-        // Update message cache
-        // --------------------------------------------
+        // ====================================
+        // UPDATE MESSAGE CACHE
+        // ====================================
+        //
+        // Don't check selected conversation.
+        //
+        // Delivery can happen while another
+        // conversation is open.
+        // ====================================
 
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
             {
-              conversationId,
+              conversationId: String(deliveryConversationId),
+
               page: 1,
+
               limit: 30,
             },
             (draft) => {
               const message = draft.messages.find(
-                (item) => item._id === messageId,
+                (item) => String(item._id) === String(messageId),
               );
 
               if (!message) {
                 return;
               }
 
-              // ------------------------------------
+              // --------------------------------
               // Initialize deliveredTo
-              // ------------------------------------
+              // --------------------------------
 
               if (!message.deliveredTo) {
                 message.deliveredTo = [];
               }
 
-              // ------------------------------------
-              // Check duplicate
-              // ------------------------------------
-
-              if (!message.deliveredTo) {
-                message.deliveredTo = [];
-              }
+              // --------------------------------
+              // Prevent duplicate
+              // --------------------------------
 
               const alreadyDelivered = message.deliveredTo.some(
-                (id) => id === userId,
+                (id) => String(id) === String(userId),
               );
-
-              if (!alreadyDelivered) {
-                message.deliveredTo.push(userId);
-              }
 
               if (alreadyDelivered) {
                 return;
               }
 
-              // ------------------------------------
+              // --------------------------------
               // Add delivered user
-              // ------------------------------------
+              // --------------------------------
 
               message.deliveredTo.push(userId);
             },
@@ -279,9 +345,84 @@ export default function useChatSocket({
       },
     );
 
-    // ==================================================
+    // ========================================
+    // MESSAGE READ UPDATE
+    // ========================================
+
+    socket.on(
+      "message:read:update",
+      ({
+        messageId,
+        conversationId: readConversationId,
+        userId,
+      }: {
+        messageId: string;
+        conversationId: string;
+        userId: string;
+      }) => {
+        console.log("MESSAGE READ UPDATE:", {
+          messageId,
+          conversationId: readConversationId,
+          userId,
+        });
+
+        // ====================================
+        // UPDATE MESSAGE CACHE
+        // ====================================
+
+        dispatch(
+          messageApi.util.updateQueryData(
+            "getMessages",
+            {
+              conversationId: String(readConversationId),
+
+              page: 1,
+
+              limit: 30,
+            },
+            (draft) => {
+              const message = draft.messages.find(
+                (item) => String(item._id) === String(messageId),
+              );
+
+              if (!message) {
+                return;
+              }
+
+              // --------------------------------
+              // Initialize readBy
+              // --------------------------------
+
+              if (!message.readBy) {
+                message.readBy = [];
+              }
+
+              // --------------------------------
+              // Prevent duplicate
+              // --------------------------------
+
+              const alreadyRead = message.readBy.some(
+                (id) => String(id) === String(userId),
+              );
+
+              if (alreadyRead) {
+                return;
+              }
+
+              // --------------------------------
+              // Add read user
+              // --------------------------------
+
+              message.readBy.push(userId);
+            },
+          ),
+        );
+      },
+    );
+
+    // ========================================
     // TYPING START
-    // ==================================================
+    // ========================================
 
     socket.on(
       "typing:start",
@@ -292,20 +433,16 @@ export default function useChatSocket({
         conversationId: string;
         userId: string;
       }) => {
-        // --------------------------------------------
-        // Wrong conversation
-        // --------------------------------------------
+        // Only selected conversation
+        // should show typing indicator.
 
-        if (typingConversationId !== conversationId) {
+        if (String(typingConversationId) !== String(conversationId)) {
           return;
         }
 
-        // --------------------------------------------
-        // IMPORTANT:
-        // Ignore our own typing event
-        // --------------------------------------------
+        // Ignore own typing
 
-        if (userId === currentUserId) {
+        if (String(userId) === String(currentUserId)) {
           return;
         }
 
@@ -315,9 +452,9 @@ export default function useChatSocket({
       },
     );
 
-    // ==================================================
+    // ========================================
     // TYPING STOP
-    // ==================================================
+    // ========================================
 
     socket.on(
       "typing:stop",
@@ -328,19 +465,16 @@ export default function useChatSocket({
         conversationId: string;
         userId: string;
       }) => {
-        // --------------------------------------------
-        // Wrong conversation
-        // --------------------------------------------
+        // Only selected conversation
+        // should show typing indicator.
 
-        if (typingConversationId !== conversationId) {
+        if (String(typingConversationId) !== String(conversationId)) {
           return;
         }
 
-        // --------------------------------------------
-        // Ignore our own typing event
-        // --------------------------------------------
+        // Ignore own typing
 
-        if (userId === currentUserId) {
+        if (String(userId) === String(currentUserId)) {
           return;
         }
 
@@ -350,30 +484,30 @@ export default function useChatSocket({
       },
     );
 
-    // ==================================================
-    // SOCKET CONNECTION ERROR
-    // ==================================================
+    // ========================================
+    // CONNECT ERROR
+    // ========================================
 
     socket.on("connect_error", (error) => {
       console.error("Socket connection error:", error.message);
     });
 
-    // ==================================================
-    // SOCKET DISCONNECT
-    // ==================================================
+    // ========================================
+    // DISCONNECT
+    // ========================================
 
     socket.on("disconnect", (reason) => {
       console.log("Socket disconnected:", reason);
     });
 
-    // ==================================================
+    // ========================================
     // CLEANUP
-    // ==================================================
+    // ========================================
 
     return () => {
-      // --------------------------------------------
-      // Leave conversation
-      // --------------------------------------------
+      // --------------------------------------
+      // Leave selected conversation
+      // --------------------------------------
 
       if (joinedConversationRef.current) {
         socket.emit("conversation:leave", {
@@ -381,21 +515,17 @@ export default function useChatSocket({
         });
       }
 
-      // --------------------------------------------
-      // Remove socket listeners
-      // --------------------------------------------
+      // --------------------------------------
+      // Remove listeners
+      // --------------------------------------
 
       socket.removeAllListeners();
 
-      // --------------------------------------------
+      // --------------------------------------
       // Disconnect socket
-      // --------------------------------------------
+      // --------------------------------------
 
       socket.disconnect();
-
-      // --------------------------------------------
-      // Reset refs
-      // --------------------------------------------
 
       socketRef.current = null;
 
@@ -410,9 +540,9 @@ export default function useChatSocket({
     onTypingStop,
   ]);
 
-  // ======================================================
+  // ==========================================
   // SEND TYPING START
-  // ======================================================
+  // ==========================================
 
   const sendTypingStart = () => {
     const socket = socketRef.current;
@@ -426,9 +556,9 @@ export default function useChatSocket({
     });
   };
 
-  // ======================================================
+  // ==========================================
   // SEND TYPING STOP
-  // ======================================================
+  // ==========================================
 
   const sendTypingStop = () => {
     const socket = socketRef.current;
@@ -442,9 +572,9 @@ export default function useChatSocket({
     });
   };
 
-  // ======================================================
+  // ==========================================
   // RETURN
-  // ======================================================
+  // ==========================================
 
   return {
     socket: socketRef.current,

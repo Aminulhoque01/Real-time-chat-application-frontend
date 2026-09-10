@@ -1,5 +1,9 @@
 import { baseApi } from "@/src/redux/api/baseApi";
-import type { Message, MessagesResponse } from "./message.types";
+
+import type {
+  Message,
+  MessagesResponse,
+} from "./message.types";
 
 interface GetMessagesParams {
   conversationId: string;
@@ -19,68 +23,148 @@ interface SingleMessageResponse {
   data: Message;
 }
 
-export const messageApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
-    getMessages: builder.query<MessagesResponse["data"], GetMessagesParams>({
-      query: ({ conversationId, page = 1, limit = 30 }) => ({
-        url: `/message/${conversationId}/messages`,
-        method: "GET",
-        params: {
-          page,
-          limit,
-        },
+export const messageApi =
+  baseApi.injectEndpoints({
+    endpoints: (builder) => ({
+      // ========================================
+      // GET MESSAGES
+      // ========================================
+
+      getMessages: builder.query<
+        MessagesResponse["data"],
+        GetMessagesParams
+      >({
+        query: ({
+          conversationId,
+          page = 1,
+          limit = 30,
+        }) => ({
+          url: `/message/${conversationId}/messages`,
+          method: "GET",
+
+          params: {
+            page,
+            limit,
+          },
+        }),
+
+        transformResponse: (
+          response: MessagesResponse,
+        ) => response.data,
+
+        providesTags: (
+          result,
+          error,
+          { conversationId },
+        ) => [
+          {
+            type: "Message",
+            id: conversationId,
+          },
+        ],
       }),
 
-      transformResponse: (response: MessagesResponse) => response.data,
+      // ========================================
+      // SEND MESSAGE
+      // ========================================
 
-      providesTags: (result, error, { conversationId }) => [
-        {
-          type: "Message",
-          id: conversationId,
+      sendMessage: builder.mutation<
+        Message,
+        SendMessageRequest
+      >({
+        query: (body) => ({
+          url: "/message",
+          method: "POST",
+          body,
+        }),
+
+        transformResponse: (
+          response: SingleMessageResponse,
+        ) => response.data,
+
+        // --------------------------------------
+        // Update sender's message cache
+        // --------------------------------------
+
+        async onQueryStarted(
+          { conversationId },
+          {
+            dispatch,
+            queryFulfilled,
+          },
+        ) {
+          try {
+            const {
+              data: newMessage,
+            } = await queryFulfilled;
+
+            dispatch(
+              messageApi.util.updateQueryData(
+                "getMessages",
+                {
+                  conversationId,
+                  page: 1,
+                  limit: 30,
+                },
+                (draft) => {
+                  // Prevent duplicate message
+                  const exists =
+                    draft.messages.some(
+                      (message) =>
+                        String(
+                          message._id,
+                        ) ===
+                        String(
+                          newMessage._id,
+                        ),
+                    );
+
+                  if (exists) {
+                    return;
+                  }
+
+                  draft.messages.push(
+                    newMessage,
+                  );
+
+                  // Keep chronological order
+                  draft.messages.sort(
+                    (a, b) =>
+                      new Date(
+                        a.createdAt,
+                      ).getTime() -
+                      new Date(
+                        b.createdAt,
+                      ).getTime(),
+                  );
+                },
+              ),
+            );
+          } catch (error) {
+            console.error(
+              "Failed to update message cache:",
+              error,
+            );
+          }
         },
-      ],
-    }),
 
-    sendMessage: builder.mutation<Message, SendMessageRequest>({
-      query: (body) => ({
-        url: "/message",
-        method: "POST",
-        body,
+        // --------------------------------------
+        // IMPORTANT:
+        //
+        // Do NOT invalidate Message here.
+        //
+        // Otherwise RTK Query may immediately
+        // refetch and replace our cache update.
+        // --------------------------------------
+
+        invalidatesTags: [
+          "Conversation",
+        ],
       }),
-
-      transformResponse: (response: SingleMessageResponse) => response.data,
-
-      async onQueryStarted({ conversationId }, { dispatch, queryFulfilled }) {
-        try {
-          const { data: newMessage } = await queryFulfilled;
-
-          dispatch(
-            messageApi.util.updateQueryData(
-              "getMessages",
-              {
-                conversationId,
-                page: 1,
-                limit: 30,
-              },
-              (draft) => {
-                draft.messages.push(newMessage);
-              },
-            ),
-          );
-        } catch (error) {
-          console.error("Failed to update message cache:", error);
-        }
-      },
-
-      invalidatesTags: (result, error, { conversationId }) => [
-        {
-          type: "Message",
-          id: conversationId,
-        },
-        "Conversation",
-      ],
     }),
-  }),
-});
+  });
 
-export const { useGetMessagesQuery, useSendMessageMutation } = messageApi;
+export const {
+  useGetMessagesQuery,
+  useSendMessageMutation,
+} = messageApi;
