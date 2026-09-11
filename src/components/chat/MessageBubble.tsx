@@ -60,19 +60,38 @@ const formatFileSize = (bytes: number) => {
 const getDeliveryStatus = (
   message: Message,
 ): "sent" | "delivered" | "read" => {
-  const readCount = message.readBy?.length ?? 0;
-  const deliveredCount = message.deliveredTo?.length ?? 0;
+  const readCount =
+    message.readBy?.length ?? 0;
 
-  // Current user is normally included
-  // in readBy/deliveredTo when applicable.
-  if (readCount > 1) {
+  const deliveredCount =
+    message.deliveredTo?.length ?? 0;
+
+  /*
+    Read / Seen
+    ----------------
+    If at least one recipient
+    has read the message.
+  */
+  if (readCount > 0) {
     return "read";
   }
 
+  /*
+    Delivered
+    ----------------
+    Message reached at least
+    one recipient.
+  */
   if (deliveredCount > 0) {
     return "delivered";
   }
 
+  /*
+    Sent
+    ----------------
+    Message was sent but has
+    not been delivered yet.
+  */
   return "sent";
 };
 
@@ -85,8 +104,13 @@ function DeliveryStatus({
 }: {
   message: Message;
 }) {
-  const status = getDeliveryStatus(message);
+  const status =
+    getDeliveryStatus(message);
 
+  /*
+    READ
+    Blue double check
+  */
   if (status === "read") {
     return (
       <CheckCheck
@@ -98,6 +122,10 @@ function DeliveryStatus({
     );
   }
 
+  /*
+    DELIVERED
+    Gray double check
+  */
   if (status === "delivered") {
     return (
       <CheckCheck
@@ -109,6 +137,10 @@ function DeliveryStatus({
     );
   }
 
+  /*
+    SENT
+    Single check
+  */
   return (
     <Check
       size={13}
@@ -132,7 +164,9 @@ export default function MessageBubble({
       ? null
       : message.senderId;
 
-  const hasText = Boolean(message.text?.trim());
+  const hasText =
+    Boolean(message.text?.trim());
+
   const hasAttachments =
     message.attachments &&
     message.attachments.length > 0;
@@ -154,15 +188,29 @@ export default function MessageBubble({
           {sender?.avatar ? (
             <img
               src={sender.avatar}
-              alt={sender.name || "User"}
-              className="h-8 w-8 rounded-full object-cover"
+              alt={
+                sender.name || "User"
+              }
+              className="
+                h-8
+                w-8
+                rounded-full
+                object-cover
+              "
             />
           ) : (
             <div
               className="
-                flex h-8 w-8 items-center justify-center
-                rounded-full bg-slate-900
-                text-[10px] font-bold text-white
+                flex
+                h-8
+                w-8
+                items-center
+                justify-center
+                rounded-full
+                bg-slate-900
+                text-[10px]
+                font-bold
+                text-white
               "
             >
               {sender?.name
@@ -190,8 +238,11 @@ export default function MessageBubble({
 
         <div
           className={`
-            overflow-hidden rounded-2xl
-            px-4 py-3 shadow-sm
+            overflow-hidden
+            rounded-2xl
+            px-4
+            py-3
+            shadow-sm
             ${
               isMine
                 ? `
@@ -222,7 +273,14 @@ export default function MessageBubble({
               -------------------------------- */}
 
               {hasText && (
-                <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                <p
+                  className="
+                    whitespace-pre-wrap
+                    break-words
+                    text-sm
+                    leading-6
+                  "
+                >
                   {message.text}
                 </p>
               )}
@@ -234,7 +292,10 @@ export default function MessageBubble({
               {hasAttachments && (
                 <div className="space-y-2">
                   {message.attachments.map(
-                    (attachment, index) => {
+                    (
+                      attachment,
+                      index,
+                    ) => {
                       const key = `${message._id}-${index}`;
 
                       /* ---------------------------
@@ -248,10 +309,15 @@ export default function MessageBubble({
                         return (
                           <div
                             key={key}
-                            className="overflow-hidden rounded-xl"
+                            className="
+                              overflow-hidden
+                              rounded-xl
+                            "
                           >
                             <img
-                              src={attachment.url}
+                              src={
+                                attachment.url
+                              }
                               alt={
                                 attachment.name ||
                                 "Image"
@@ -279,7 +345,10 @@ export default function MessageBubble({
                         return (
                           <div
                             key={key}
-                            className="overflow-hidden rounded-xl"
+                            className="
+                              overflow-hidden
+                              rounded-xl
+                            "
                           >
                             <video
                               src={
@@ -365,7 +434,9 @@ export default function MessageBubble({
                       return (
                         <a
                           key={key}
-                          href={attachment.url}
+                          href={
+                            attachment.url
+                          }
                           target="_blank"
                           rel="noopener noreferrer"
                           className={`
@@ -433,11 +504,7 @@ export default function MessageBubble({
                                 className={`
                                   mt-0.5
                                   text-[10px]
-                                  ${
-                                    isMine
-                                      ? "text-slate-400"
-                                      : "text-slate-400"
-                                  }
+                                  text-slate-400
                                 `}
                               >
                                 {formatFileSize(
@@ -477,7 +544,9 @@ export default function MessageBubble({
           {/* Time */}
 
           <span className="text-[10px] text-slate-400">
-            {formatTime(message.createdAt)}
+            {formatTime(
+              message.createdAt,
+            )}
           </span>
 
           {/* Edited */}

@@ -15,17 +15,28 @@ import {
 
 interface MessageListProps {
   conversationId: string;
+
+  currentUserId?: string;
+
+  markMessageAsRead?: (
+    messageId: string,
+  ) => void;
 }
 
 export default function MessageList({
   conversationId,
+  currentUserId,
+  markMessageAsRead,
 }: MessageListProps) {
   const currentUser = useAppSelector(
     (state) => state.auth.user,
   );
 
-  const { data, isLoading, isError } =
-  useGetMessagesQuery(
+  const {
+    data,
+    isLoading,
+    isError,
+  } = useGetMessagesQuery(
     {
       conversationId,
       page: 1,
@@ -38,10 +49,6 @@ export default function MessageList({
 
   const messages = data?.messages ?? [];
 
-  /* ----------------------------------
-     Scroll Refs
-  ---------------------------------- */
-
   const containerRef =
     useRef<HTMLDivElement | null>(null);
 
@@ -51,14 +58,30 @@ export default function MessageList({
   const previousMessageCount =
     useRef(0);
 
-  /* ----------------------------------
-     Check whether user is near bottom
-  ---------------------------------- */
+  /**
+   * Keeps track of messages that we
+   * have already emitted as read.
+   *
+   * This prevents duplicate:
+   *
+   * message:read
+   *
+   * socket events.
+   */
+  const markedReadMessageIds =
+    useRef<Set<string>>(new Set());
 
+  /**
+   * Check whether the user is close
+   * enough to the bottom of the chat.
+   */
   const isNearBottom = () => {
-    const container = containerRef.current;
+    const container =
+      containerRef.current;
 
-    if (!container) return true;
+    if (!container) {
+      return true;
+    }
 
     const distanceFromBottom =
       container.scrollHeight -
@@ -68,10 +91,9 @@ export default function MessageList({
     return distanceFromBottom < 150;
   };
 
-  /* ----------------------------------
-     Scroll to Bottom
-  ---------------------------------- */
-
+  /**
+   * Scroll chat to bottom.
+   */
   const scrollToBottom = (
     behavior: ScrollBehavior = "auto",
   ) => {
@@ -81,12 +103,102 @@ export default function MessageList({
     });
   };
 
-  /* ----------------------------------
-     Initial Load / Conversation Change
-  ---------------------------------- */
-
+  /**
+   * Reset read tracking when the
+   * selected conversation changes.
+   */
   useEffect(() => {
-    if (isLoading) return;
+    markedReadMessageIds.current.clear();
+  }, [conversationId]);
+
+  /**
+   * Mark incoming unread messages as read.
+   */
+  useEffect(() => {
+    if (
+      isLoading ||
+      !currentUserId ||
+      !markMessageAsRead
+    ) {
+      return;
+    }
+
+    if (!conversationId) {
+      return;
+    }
+
+   
+
+    messages.forEach((message) => {
+      const senderId =
+        typeof message.senderId === "string"
+          ? message.senderId
+          : message.senderId?._id;
+
+      if (!senderId) {
+        return;
+      }
+
+ 
+      if (
+        String(senderId) ===
+        String(currentUserId)
+      ) {
+        return;
+      }
+
+      const alreadyRead =
+        message.readBy?.some(
+          (userId) =>
+            String(userId) ===
+            String(currentUserId),
+        ) ?? false;
+ 
+
+      if (alreadyRead) {
+        markedReadMessageIds.current.add(
+          message._id,
+        );
+
+        return;
+      }
+
+      if (
+        markedReadMessageIds.current.has(
+          message._id,
+        )
+      ) {
+        return;
+      }
+
+      markedReadMessageIds.current.add(
+        message._id,
+      );
+
+      console.log(
+        "MARKING MESSAGE AS READ:",
+        message._id,
+      );
+
+      markMessageAsRead(message._id);
+    });
+  }, [
+    conversationId,
+    messages,
+    isLoading,
+    currentUserId,
+    markMessageAsRead,
+  ]);
+  
+    
+
+  /**
+   * Initial conversation scroll.
+   */
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
 
     previousMessageCount.current =
       messages.length;
@@ -94,14 +206,18 @@ export default function MessageList({
     requestAnimationFrame(() => {
       scrollToBottom("auto");
     });
-  }, [conversationId, isLoading]);
+  }, [
+    conversationId,
+    isLoading,
+  ]);
 
-  /* ----------------------------------
-     New Message
-  ---------------------------------- */
-
+  /**
+   * Scroll when new messages arrive.
+   */
   useEffect(() => {
-    if (isLoading) return;
+    if (isLoading) {
+      return;
+    }
 
     const currentCount =
       messages.length;
@@ -109,7 +225,10 @@ export default function MessageList({
     const previousCount =
       previousMessageCount.current;
 
-    if (currentCount > previousCount) {
+    if (
+      currentCount >
+      previousCount
+    ) {
       const shouldScroll =
         isNearBottom();
 
@@ -127,10 +246,9 @@ export default function MessageList({
     isLoading,
   ]);
 
-  /* ----------------------------------
-     Loading
-  ---------------------------------- */
-
+  /**
+   * Loading state.
+   */
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -148,10 +266,9 @@ export default function MessageList({
     );
   }
 
-  /* ----------------------------------
-     Error
-  ---------------------------------- */
-
+  /**
+   * Error state.
+   */
   if (isError) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -161,10 +278,6 @@ export default function MessageList({
       </div>
     );
   }
-
-  /* ----------------------------------
-     UI
-  ---------------------------------- */
 
   return (
     <div
@@ -201,8 +314,8 @@ export default function MessageList({
                 : message.senderId?._id;
 
             const isMine =
-              senderId ===
-              currentUser?._id;
+              String(senderId) ===
+              String(currentUser?._id);
 
             return (
               <MessageBubble
@@ -213,8 +326,6 @@ export default function MessageList({
             );
           })
         )}
-
-        {/* Scroll Anchor */}
 
         <div
           ref={bottomRef}

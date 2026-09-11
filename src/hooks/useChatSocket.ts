@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
 } from "react";
@@ -20,9 +21,13 @@ import type { Message } from "@/src/redux/features/message/message.types";
 interface ChatSocketProps {
   conversationId: string | null;
 
-  onTypingStart?: (userId: string) => void;
+  onTypingStart?: (
+    userId: string,
+  ) => void;
 
-  onTypingStop?: (userId: string) => void;
+  onTypingStop?: (
+    userId: string,
+  ) => void;
 }
 
 export default function useChatSocket({
@@ -53,6 +58,136 @@ export default function useChatSocket({
 
   const joinedConversationRef =
     useRef<string | null>(null);
+
+  // ==========================================
+  // CURRENT VALUES REFS
+  // ==========================================
+
+  /*
+    Socket event listeners stay alive even when
+    conversation changes.
+
+    So we keep the latest values in refs.
+  */
+
+  const conversationIdRef =
+    useRef<string | null>(
+      conversationId,
+    );
+
+  const currentUserIdRef =
+    useRef<string | undefined>(
+      currentUserId,
+    );
+
+  const onTypingStartRef =
+    useRef<
+      ((userId: string) => void) | undefined
+    >(onTypingStart);
+
+  const onTypingStopRef =
+    useRef<
+      ((userId: string) => void) | undefined
+    >(onTypingStop);
+
+  useEffect(() => {
+    conversationIdRef.current =
+      conversationId;
+  }, [conversationId]);
+
+  useEffect(() => {
+    currentUserIdRef.current =
+      currentUserId;
+  }, [currentUserId]);
+
+  useEffect(() => {
+    onTypingStartRef.current =
+      onTypingStart;
+  }, [onTypingStart]);
+
+  useEffect(() => {
+    onTypingStopRef.current =
+      onTypingStop;
+  }, [onTypingStop]);
+
+  // ==========================================
+  // PENDING READ MESSAGE IDS
+  // ==========================================
+
+  /*
+    If a message needs to be marked as read
+    while socket is not connected, keep its ID here.
+
+    Once socket connects, all pending messages
+    will automatically be marked as read.
+  */
+
+  const pendingReadMessageIds =
+    useRef<Set<string>>(new Set());
+
+  // ==========================================
+  // MARK MESSAGE AS READ
+  // ==========================================
+
+  const markMessageAsRead =
+    useCallback((messageId: string) => {
+      if (!messageId) {
+        return;
+      }
+
+      const socket =
+        socketRef.current;
+
+      /*
+        Socket does not exist yet.
+        Queue the message.
+      */
+
+      if (!socket) {
+        pendingReadMessageIds.current.add(
+          String(messageId),
+        );
+
+        console.log(
+          "READ QUEUED - socket unavailable:",
+          messageId,
+        );
+
+        return;
+      }
+
+      /*
+        Socket exists but is not connected.
+        Queue the message.
+      */
+
+      if (!socket.connected) {
+        pendingReadMessageIds.current.add(
+          String(messageId),
+        );
+
+        console.log(
+          "READ QUEUED - socket not connected:",
+          messageId,
+        );
+
+        return;
+      }
+
+      /*
+        Socket is connected.
+        Send immediately.
+      */
+
+      socket.emit("message:read", {
+        messageId,
+      });
+
+      console.log(
+        "MESSAGE READ EMITTED:",
+        messageId,
+      );
+    }, []);
 
   // ==========================================
   // SOCKET CONNECTION
@@ -87,33 +222,64 @@ export default function useChatSocket({
         socket.id,
       );
 
-      // --------------------------------------
-      // Join selected conversation
-      // --------------------------------------
+      // ======================================
+      // JOIN CURRENT CONVERSATION
+      // ======================================
 
-      if (conversationId) {
-        socket.emit("conversation:join", {
-          conversationId,
-        });
+      const selectedConversationId =
+        conversationIdRef.current;
+
+      if (selectedConversationId) {
+        socket.emit(
+          "conversation:join",
+          {
+            conversationId:
+              selectedConversationId,
+          },
+        );
 
         joinedConversationRef.current =
-          conversationId;
+          selectedConversationId;
 
         console.log(
           "Joining conversation:",
-          conversationId,
+          selectedConversationId,
         );
       }
 
-      // --------------------------------------
-      // Personal room
-      // --------------------------------------
+      // ======================================
+      // FLUSH PENDING READS
+      // ======================================
 
-      // Backend automatically joins:
-      //
-      // user:${currentUserId}
-      //
-      // No frontend join required.
+      if (
+        pendingReadMessageIds.current
+          .size > 0
+      ) {
+        console.log(
+          "Flushing pending read messages:",
+          Array.from(
+            pendingReadMessageIds.current,
+          ),
+        );
+
+        pendingReadMessageIds.current.forEach(
+          (messageId) => {
+            socket.emit(
+              "message:read",
+              {
+                messageId,
+              },
+            );
+
+            console.log(
+              "Pending message marked as read:",
+              messageId,
+            );
+          },
+        );
+
+        pendingReadMessageIds.current.clear();
+      }
     });
 
     // ========================================
@@ -159,20 +325,25 @@ export default function useChatSocket({
           message,
         );
 
-        // ========================================
+        // ====================================
         // NORMALIZE IDS
-        // ========================================
+        // ====================================
 
         const messageConversationId =
-          String(message.conversationId);
+          String(
+            message.conversationId,
+          );
 
         const selectedConversationId =
-          conversationId
-            ? String(conversationId)
+          conversationIdRef.current
+            ? String(
+                conversationIdRef.current,
+              )
             : null;
 
         const messageSenderId =
-          typeof message.senderId === "string"
+          typeof message.senderId ===
+          "string"
             ? message.senderId
             : message.senderId?._id;
 
@@ -182,7 +353,11 @@ export default function useChatSocket({
             : null;
 
         const normalizedCurrentUserId =
-          String(currentUserId);
+          currentUserIdRef.current
+            ? String(
+                currentUserIdRef.current,
+              )
+            : null;
 
         const isOwnMessage =
           normalizedSenderId ===
@@ -192,9 +367,9 @@ export default function useChatSocket({
           messageConversationId ===
           selectedConversationId;
 
-        // ========================================
+        // ====================================
         // DELIVERY
-        // ========================================
+        // ====================================
 
         if (
           normalizedSenderId &&
@@ -203,7 +378,8 @@ export default function useChatSocket({
           socket.emit(
             "message:delivered",
             {
-              messageId: message._id,
+              messageId:
+                message._id,
             },
           );
 
@@ -213,9 +389,34 @@ export default function useChatSocket({
           );
         }
 
-        // ========================================
+        // ====================================
+        // READ / SEEN
+        // ====================================
+
+        /*
+          If receiver is currently inside
+          this conversation, immediately
+          mark the message as read.
+        */
+
+        if (
+          normalizedSenderId &&
+          !isOwnMessage &&
+          isCurrentConversation
+        ) {
+          markMessageAsRead(
+            message._id,
+          );
+
+          console.log(
+            "Message read:",
+            message._id,
+          );
+        }
+
+        // ====================================
         // MESSAGE CACHE
-        // ========================================
+        // ====================================
 
         dispatch(
           messageApi.util.updateQueryData(
@@ -223,9 +424,7 @@ export default function useChatSocket({
             {
               conversationId:
                 messageConversationId,
-
               page: 1,
-
               limit: 30,
             },
             (draft) => {
@@ -242,10 +441,11 @@ export default function useChatSocket({
                 return;
               }
 
-              draft.messages.push(message);
+              draft.messages.push(
+                message,
+              );
 
               // Keep chronological order
-
               draft.messages.sort(
                 (a, b) =>
                   new Date(
@@ -259,9 +459,9 @@ export default function useChatSocket({
           ),
         );
 
-        // ========================================
+        // ====================================
         // SIDEBAR CACHE
-        // ========================================
+        // ====================================
 
         dispatch(
           conversationApi.util.updateQueryData(
@@ -271,7 +471,9 @@ export default function useChatSocket({
               const conversation =
                 draft.find(
                   (item) =>
-                    String(item._id) ===
+                    String(
+                      item._id,
+                    ) ===
                     messageConversationId,
                 );
 
@@ -279,24 +481,24 @@ export default function useChatSocket({
                 return;
               }
 
-              // ----------------------------------
+              // --------------------------------
               // Last message
-              // ----------------------------------
+              // --------------------------------
 
               conversation.lastMessage =
                 message as typeof conversation.lastMessage;
 
-              // ----------------------------------
+              // --------------------------------
               // Updated time
-              // ----------------------------------
+              // --------------------------------
 
               conversation.updatedAt =
                 message.updatedAt ||
                 message.createdAt;
 
-              // ----------------------------------
+              // --------------------------------
               // Unread
-              // ----------------------------------
+              // --------------------------------
 
               if (
                 !isOwnMessage &&
@@ -307,14 +509,16 @@ export default function useChatSocket({
                     0) + 1;
               }
 
-              // ----------------------------------
+              // --------------------------------
               // Move conversation to top
-              // ----------------------------------
+              // --------------------------------
 
               const currentIndex =
                 draft.findIndex(
                   (item) =>
-                    String(item._id) ===
+                    String(
+                      item._id,
+                    ) ===
                     messageConversationId,
                 );
 
@@ -326,7 +530,9 @@ export default function useChatSocket({
                   1,
                 );
 
-                if (updatedConversation) {
+                if (
+                  updatedConversation
+                ) {
                   draft.unshift(
                     updatedConversation,
                   );
@@ -375,20 +581,25 @@ export default function useChatSocket({
               conversationId: String(
                 deliveryConversationId,
               ),
-
               page: 1,
-
               limit: 30,
             },
             (draft) => {
               const message =
                 draft.messages.find(
                   (item) =>
-                    String(item._id) ===
+                    String(
+                      item._id,
+                    ) ===
                     String(messageId),
                 );
 
               if (!message) {
+                console.log(
+                  "DELIVERY UPDATE: Message not found in cache",
+                  messageId,
+                );
+
                 return;
               }
 
@@ -396,8 +607,11 @@ export default function useChatSocket({
               // Initialize deliveredTo
               // --------------------------------
 
-              if (!message.deliveredTo) {
-                message.deliveredTo = [];
+              if (
+                !message.deliveredTo
+              ) {
+                message.deliveredTo =
+                  [];
               }
 
               // --------------------------------
@@ -411,7 +625,9 @@ export default function useChatSocket({
                     String(userId),
                 );
 
-              if (alreadyDelivered) {
+              if (
+                alreadyDelivered
+              ) {
                 return;
               }
 
@@ -421,6 +637,16 @@ export default function useChatSocket({
 
               message.deliveredTo.push(
                 userId,
+              );
+
+              console.log(
+                "DELIVERY UPDATE: deliveredTo updated",
+                {
+                  messageId,
+                  userId,
+                  deliveredTo:
+                    message.deliveredTo,
+                },
               );
             },
           ),
@@ -465,20 +691,25 @@ export default function useChatSocket({
               conversationId: String(
                 readConversationId,
               ),
-
               page: 1,
-
               limit: 30,
             },
             (draft) => {
               const message =
                 draft.messages.find(
                   (item) =>
-                    String(item._id) ===
+                    String(
+                      item._id,
+                    ) ===
                     String(messageId),
                 );
 
               if (!message) {
+                console.log(
+                  "READ UPDATE: Message not found in cache",
+                  messageId,
+                );
+
                 return;
               }
 
@@ -502,15 +733,30 @@ export default function useChatSocket({
                 );
 
               if (alreadyRead) {
+                console.log(
+                  "READ UPDATE: Already marked as read",
+                  messageId,
+                );
+
                 return;
               }
 
               // --------------------------------
-              // Add read user
+              // Add reader
               // --------------------------------
 
               message.readBy.push(
                 userId,
+              );
+
+              console.log(
+                "READ UPDATE: readBy updated",
+                {
+                  messageId,
+                  userId,
+                  readBy:
+                    message.readBy,
+                },
               );
             },
           ),
@@ -536,8 +782,12 @@ export default function useChatSocket({
         // should show typing indicator.
 
         if (
-          String(typingConversationId) !==
-          String(conversationId)
+          String(
+            typingConversationId,
+          ) !==
+          String(
+            conversationIdRef.current,
+          )
         ) {
           return;
         }
@@ -546,7 +796,9 @@ export default function useChatSocket({
 
         if (
           String(userId) ===
-          String(currentUserId)
+          String(
+            currentUserIdRef.current,
+          )
         ) {
           return;
         }
@@ -556,7 +808,9 @@ export default function useChatSocket({
           userId,
         );
 
-        onTypingStart?.(userId);
+        onTypingStartRef.current?.(
+          userId,
+        );
       },
     );
 
@@ -578,8 +832,12 @@ export default function useChatSocket({
         // should show typing indicator.
 
         if (
-          String(typingConversationId) !==
-          String(conversationId)
+          String(
+            typingConversationId,
+          ) !==
+          String(
+            conversationIdRef.current,
+          )
         ) {
           return;
         }
@@ -588,7 +846,9 @@ export default function useChatSocket({
 
         if (
           String(userId) ===
-          String(currentUserId)
+          String(
+            currentUserIdRef.current,
+          )
         ) {
           return;
         }
@@ -598,7 +858,9 @@ export default function useChatSocket({
           userId,
         );
 
-        onTypingStop?.(userId);
+        onTypingStopRef.current?.(
+          userId,
+        );
       },
     );
 
@@ -663,7 +925,15 @@ export default function useChatSocket({
 
       socket.disconnect();
 
-      socketRef.current = null;
+      // --------------------------------------
+      // Clear socket reference
+      // --------------------------------------
+
+      if (
+        socketRef.current === socket
+      ) {
+        socketRef.current = null;
+      }
 
       joinedConversationRef.current =
         null;
@@ -671,61 +941,152 @@ export default function useChatSocket({
   }, [
     token,
     currentUserId,
-    conversationId,
     dispatch,
-    onTypingStart,
-    onTypingStop,
+    markMessageAsRead,
   ]);
+
+  // ==========================================
+  // CHANGE CONVERSATION
+  // ==========================================
+
+  useEffect(() => {
+    const socket =
+      socketRef.current;
+
+    if (!socket) {
+      /*
+        Socket may still be connecting.
+
+        The connect handler will automatically
+        join conversationIdRef.current.
+      */
+
+      return;
+    }
+
+    /*
+      If socket isn't connected yet,
+      don't emit join/leave.
+
+      The connect handler will use the
+      latest conversation ID.
+    */
+
+    if (!socket.connected) {
+      return;
+    }
+
+    const nextConversationId =
+      conversationId;
+
+    const previousConversationId =
+      joinedConversationRef.current;
+
+    /*
+      Nothing changed.
+    */
+
+    if (
+      previousConversationId ===
+      nextConversationId
+    ) {
+      return;
+    }
+
+    // ========================================
+    // LEAVE OLD CONVERSATION
+    // ========================================
+
+    if (previousConversationId) {
+      socket.emit(
+        "conversation:leave",
+        {
+          conversationId:
+            previousConversationId,
+        },
+      );
+
+      console.log(
+        "Leaving conversation:",
+        previousConversationId,
+      );
+    }
+
+    joinedConversationRef.current =
+      null;
+
+    // ========================================
+    // JOIN NEW CONVERSATION
+    // ========================================
+
+    if (nextConversationId) {
+      socket.emit(
+        "conversation:join",
+        {
+          conversationId:
+            nextConversationId,
+        },
+      );
+
+      joinedConversationRef.current =
+        nextConversationId;
+
+      console.log(
+        "Joining conversation:",
+        nextConversationId,
+      );
+    }
+  }, [conversationId]);
 
   // ==========================================
   // SEND TYPING START
   // ==========================================
 
-  const sendTypingStart = () => {
-    const socket = socketRef.current;
+  const sendTypingStart =
+    useCallback(() => {
+      const socket =
+        socketRef.current;
 
-    if (!socket || !conversationId) {
-      return;
-    }
+      if (
+        !socket ||
+        !conversationId
+      ) {
+        return;
+      }
 
-    socket.emit("typing:start", {
-      conversationId,
-    });
-  };
+      if (!socket.connected) {
+        return;
+      }
+
+      socket.emit("typing:start", {
+        conversationId,
+      });
+    }, [conversationId]);
 
   // ==========================================
   // SEND TYPING STOP
   // ==========================================
 
-  const sendTypingStop = () => {
-    const socket = socketRef.current;
+  const sendTypingStop =
+    useCallback(() => {
+      const socket =
+        socketRef.current;
 
-    if (!socket || !conversationId) {
-      return;
-    }
+      if (
+        !socket ||
+        !conversationId
+      ) {
+        return;
+      }
 
-    socket.emit("typing:stop", {
-      conversationId,
-    });
-  };
+      if (!socket.connected) {
+        return;
+      }
 
-  // ==========================================
-  // MARK MESSAGE AS READ
-  // ==========================================
-
-  const markMessageAsRead = (
-    messageId: string,
-  ) => {
-    const socket = socketRef.current;
-
-    if (!socket || !messageId) {
-      return;
-    }
-
-    socket.emit("message:read", {
-      messageId,
-    });
-  };
+      socket.emit("typing:stop", {
+        conversationId,
+      });
+    }, [conversationId]);
 
   // ==========================================
   // RETURN

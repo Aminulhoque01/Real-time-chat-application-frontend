@@ -128,18 +128,22 @@ export default function ChatLayout() {
   // =========================
 
   const {
-    sendTypingStart,
-    sendTypingStop,
-  } = useChatSocket({
-    conversationId:
-      selectedConversationId,
+      sendTypingStart,
+      sendTypingStop,
+      markMessageAsRead,
+    } = useChatSocket({
+      conversationId:
+        selectedConversationId,
 
-    onTypingStart:
-      handleTypingStart,
+      onTypingStart:
+        handleTypingStart,
 
-    onTypingStop:
-      handleTypingStop,
-  });
+      onTypingStop:
+        handleTypingStop,
+
+
+       
+    });
 
   // =========================
   // SELECT CONVERSATION
@@ -277,6 +281,9 @@ export default function ChatLayout() {
         }
         onTypingStop={
           sendTypingStop
+        }
+         markMessageAsRead={
+          markMessageAsRead
         }
         isTyping={isTyping}
         typingUserName={

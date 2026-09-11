@@ -22,19 +22,21 @@ interface ChatUIProps {
   onTypingStart?: () => void;
   onTypingStop?: () => void;
 
+  // Read / Seen
+  markMessageAsRead?: (
+    messageId: string,
+  ) => void;
+
+  
+
   isTyping?: boolean;
   typingUserName?: string;
 }
-
-// ======================================================
-// GET OTHER PARTICIPANT
-// ======================================================
 
 const getOtherParticipant = (
   conversation: Conversation,
   currentUserId?: string,
 ): ConversationUser | null => {
-  // Group conversation হলে single "other user" থাকবে না
   if (conversation.type === "group") {
     return null;
   }
@@ -48,20 +50,14 @@ const getOtherParticipant = (
   return otherParticipant ?? null;
 };
 
-// ======================================================
-// GET CONVERSATION NAME
-// ======================================================
-
 const getConversationName = (
   conversation: Conversation,
   currentUserId?: string,
 ): string => {
-  // Group name
   if (conversation.type === "group") {
     return conversation.name?.trim() || "Group";
   }
 
-  // Direct chat → other person's name
   const otherUser =
     getOtherParticipant(
       conversation,
@@ -75,15 +71,10 @@ const getConversationName = (
   );
 };
 
-// ======================================================
-// GET CONVERSATION AVATAR
-// ======================================================
-
 const getConversationAvatar = (
   conversation: Conversation,
   currentUserId?: string,
 ): string | null => {
-  // Group chat
   if (conversation.type === "group") {
     return null;
   }
@@ -97,9 +88,7 @@ const getConversationAvatar = (
   return otherUser?.avatar || null;
 };
 
-// ======================================================
-// CHAT UI
-// ======================================================
+
 
 export default function ChatUI({
   conversation,
@@ -108,13 +97,14 @@ export default function ChatUI({
   onSendMessage,
   onTypingStart,
   onTypingStop,
+  markMessageAsRead,
   isTyping = false,
   typingUserName,
 }: ChatUIProps) {
-  // ====================================================
-  // NO CONVERSATION SELECTED
-  // ====================================================
-
+    console.log(
+    "CHAT UI markMessageAsRead:",
+    markMessageAsRead,
+  );
   if (!conversation) {
     return (
       <main className="flex min-h-0 flex-1 flex-col bg-white">
@@ -122,10 +112,6 @@ export default function ChatUI({
       </main>
     );
   }
-
-  // ====================================================
-  // CONVERSATION INFORMATION
-  // ====================================================
 
   const otherUser =
     getOtherParticipant(
@@ -145,23 +131,11 @@ export default function ChatUI({
       currentUserId,
     );
 
-  // ====================================================
-  // TYPING NAME
-  // ====================================================
-
   const displayTypingName =
     typingUserName?.trim() || "Someone";
 
-  // ====================================================
-  // UI
-  // ====================================================
-
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-white">
-      {/* ==================================================
-          CHAT HEADER
-      ================================================== */}
-
       <ChatHeader
         conversation={conversation}
         name={conversationName}
@@ -169,20 +143,18 @@ export default function ChatUI({
         otherUser={otherUser}
         onOpenSidebar={onOpenSidebar}
       />
-
-      {/* ==================================================
-          MESSAGE AREA
-      ================================================== */}
-
+      
       <div className="min-h-0 flex-1 overflow-hidden">
         <MessageList
+        
           conversationId={conversation._id}
+          currentUserId={currentUserId}
+          markMessageAsRead={
+            markMessageAsRead
+          }
         />
+        
       </div>
-
-      {/* ==================================================
-          TYPING INDICATOR
-      ================================================== */}
 
       <div
         className={`
@@ -203,10 +175,6 @@ export default function ChatUI({
           />
         )}
       </div>
-
-      {/* ==================================================
-          MESSAGE COMPOSER
-      ================================================== */}
 
       <MessageComposer
         onSend={onSendMessage}
