@@ -18,6 +18,7 @@ export interface MessageAttachment {
 }
 
 export interface Message {
+  deletedAt: string | null;
   _id: string;
   conversationId: string;
 
@@ -43,6 +44,17 @@ export interface Message {
   updatedAt: string;
 }
 
+export interface DeleteMessageResponse {
+  success: boolean;
+  message: string;
+  data: {
+    messageId: string;
+    conversationId: string;
+    isDeleted: boolean;
+    deletedAt: string | null;
+  };
+}
+
 export interface MessagePagination {
   page: number;
   limit: number;
@@ -60,3 +72,5 @@ export interface MessagesResponse {
     pagination: MessagePagination;
   };
 }
+
+

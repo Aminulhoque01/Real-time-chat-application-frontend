@@ -7,6 +7,7 @@ import {
 
 import ChatSidebar from "./ChatSidebar";
 import ChatUI from "./ChatUI";
+import type { MessageSendPayload } from "./MessageComposer";
 
 import {
   useAppDispatch,
@@ -221,82 +222,76 @@ export default function ChatLayout() {
   // =========================
   // SEND MESSAGE
   // =========================
-  //
-  // Supports:
-  // 1. Text message -> string
-  // 2. Voice message -> File
-  //
-  // Actual File/FormData upload
-  // will be connected in the next step.
-  // =========================
 
   const handleSendMessage = async (
-    content: string | File,
+    payload: MessageSendPayload,
   ) => {
-    // =================================
-    // VOICE / FILE MESSAGE
-    // =================================
-
-    if (content instanceof File) {
-      if (!selectedConversationId) {
-        return;
-      }
-
-      console.log(
-        "SENDING VOICE FILE:",
-        content,
-      );
-
-      try {
-        const result =
-          await sendMessage({
-            conversationId:
-              selectedConversationId,
-            attachments: [content],
-          }).unwrap();
-
-        console.log(
-          "VOICE MESSAGE SENT SUCCESSFULLY:",
-          result,
-        );
-      } catch (error) {
-        console.error(
-          "VOICE MESSAGE SEND ERROR:",
-          error,
-        );
-      }
-
+    if (!selectedConversationId) {
       return;
     }
 
-    // =================================
-    // TEXT MESSAGE
-    // =================================
+    const text =
+      payload.text?.trim();
 
-    const message = content.trim();
+    const attachments =
+      payload.attachments;
+
+    // =================================
+    // VALIDATE
+    // =================================
 
     if (
-      !selectedConversationId ||
-      !message
+      !text &&
+      (!attachments ||
+        attachments.length === 0)
     ) {
       return;
     }
+
+    // =================================
+    // DEBUG
+    // =================================
 
     console.log(
       "SENDING MESSAGE:",
       {
         conversationId:
           selectedConversationId,
-        text: message,
+        text,
+        attachments,
       },
     );
+
+    if (attachments) {
+      console.log(
+        "ATTACHMENT FILES:",
+        attachments.map(
+          (file) => ({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+          }),
+        ),
+      );
+    }
+
+    // =================================
+    // SEND TO BACKEND
+    // =================================
 
     try {
       const result =
         await sendMessage({
           conversationId:
             selectedConversationId,
-          text: message,
+
+          text: text || undefined,
+
+          attachments:
+            attachments &&
+            attachments.length > 0
+              ? attachments
+              : undefined,
         }).unwrap();
 
       console.log(

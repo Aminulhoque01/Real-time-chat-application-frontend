@@ -1,7 +1,9 @@
 "use client";
 
 import ChatHeader from "./ChatHeader";
-import MessageComposer from "./MessageComposer";
+import MessageComposer, {
+  type MessageSendPayload,
+} from "./MessageComposer";
 import MessageList from "./MessageList";
 import TypingIndicator from "./TypingIndicator";
 import EmptyChat from "./EmptyChat";
@@ -17,9 +19,9 @@ interface ChatUIProps {
 
   onOpenSidebar: () => void;
 
-  // Text message + Voice message
+  // Text + attachments + voice
   onSendMessage?: (
-    content: string | File,
+    payload: MessageSendPayload,
   ) => void;
 
   onTypingStart?: () => void;

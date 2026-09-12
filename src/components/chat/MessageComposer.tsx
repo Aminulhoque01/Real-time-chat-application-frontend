@@ -7,6 +7,7 @@ import {
   Smile,
   Square,
   Trash2,
+  X,
 } from "lucide-react";
 
 import {
@@ -15,9 +16,14 @@ import {
   useState,
 } from "react";
 
+export interface MessageSendPayload {
+  text?: string;
+  attachments?: File[];
+}
+
 interface MessageComposerProps {
   onSend?: (
-    content: string | File,
+    payload: MessageSendPayload,
   ) => void;
 
   onTypingStart?: () => void;
@@ -36,6 +42,13 @@ export default function MessageComposer({
   // =========================
 
   const [message, setMessage] = useState("");
+
+  // =========================
+  // ATTACHMENTS
+  // =========================
+
+  const [selectedFiles, setSelectedFiles] =
+    useState<File[]>([]);
 
   // =========================
   // VOICE RECORDING
@@ -112,16 +125,20 @@ export default function MessageComposer({
   }, [audioUrl]);
 
   // =========================
-  // SEND TEXT MESSAGE
+  // SEND MESSAGE
   // =========================
 
   const handleSend = () => {
     const trimmedMessage =
       message.trim();
 
+    if (disabled) {
+      return;
+    }
+
     if (
-      !trimmedMessage ||
-      disabled
+      !trimmedMessage &&
+      selectedFiles.length === 0
     ) {
       return;
     }
@@ -132,12 +149,23 @@ export default function MessageComposer({
       clearTimeout(
         typingTimeoutRef.current,
       );
+
+      typingTimeoutRef.current = null;
     }
 
-    // Text message
-    onSend?.(trimmedMessage);
+    onSend?.({
+      text:
+        trimmedMessage ||
+        undefined,
+
+      attachments:
+        selectedFiles.length > 0
+          ? selectedFiles
+          : undefined,
+    });
 
     setMessage("");
+    setSelectedFiles([]);
   };
 
   // =========================
@@ -159,6 +187,8 @@ export default function MessageComposer({
         clearTimeout(
           typingTimeoutRef.current,
         );
+
+        typingTimeoutRef.current = null;
       }
 
       return;
@@ -200,6 +230,10 @@ export default function MessageComposer({
   // =========================
 
   const handleAttachmentClick = () => {
+    if (disabled) {
+      return;
+    }
+
     fileInputRef.current?.click();
   };
 
@@ -216,15 +250,107 @@ export default function MessageComposer({
       return;
     }
 
+    const newFiles =
+      Array.from(files);
+
+    setSelectedFiles((previous) => [
+      ...previous,
+      ...newFiles,
+    ]);
+
     console.log(
-      "Selected files:",
-      files,
+      "SELECTED FILES:",
+      newFiles,
     );
 
-    // Attachment upload will be connected
-    // in the next step.
-
+    // Allow selecting same file again
     event.target.value = "";
+  };
+
+  // =========================
+  // REMOVE ATTACHMENT
+  // =========================
+
+  const handleRemoveFile = (
+    index: number,
+  ) => {
+    setSelectedFiles((previous) =>
+      previous.filter(
+        (_, fileIndex) =>
+          fileIndex !== index,
+      ),
+    );
+  };
+
+  // =========================
+  // FORMAT FILE SIZE
+  // =========================
+
+  const formatFileSize = (
+    bytes: number,
+  ) => {
+    if (bytes < 1024) {
+      return `${bytes} B`;
+    }
+
+    if (bytes < 1024 * 1024) {
+      return `${(
+        bytes / 1024
+      ).toFixed(1)} KB`;
+    }
+
+    if (bytes < 1024 * 1024 * 1024) {
+      return `${(
+        bytes /
+        (1024 * 1024)
+      ).toFixed(1)} MB`;
+    }
+
+    return `${(
+      bytes /
+      (1024 * 1024 * 1024)
+    ).toFixed(1)} GB`;
+  };
+
+  // =========================
+  // FILE ICON
+  // =========================
+
+  const getFileIcon = (
+    file: File,
+  ) => {
+    if (
+      file.type.startsWith(
+        "image/",
+      )
+    ) {
+      return "🖼️";
+    }
+
+    if (
+      file.type.startsWith(
+        "video/",
+      )
+    ) {
+      return "🎥";
+    }
+
+    if (
+      file.type.startsWith(
+        "audio/",
+      )
+    ) {
+      return "🎵";
+    }
+
+    if (
+      file.type ===
+      "application/pdf"
+    ) {
+      return "📕";
+    }
+
+    return "📄";
   };
 
   // =========================
@@ -255,7 +381,8 @@ export default function MessageComposer({
     async () => {
       if (
         disabled ||
-        isRecording
+        isRecording ||
+        selectedFiles.length > 0
       ) {
         return;
       }
@@ -282,10 +409,6 @@ export default function MessageComposer({
         mediaRecorderRef.current =
           mediaRecorder;
 
-        // =========================
-        // AUDIO DATA
-        // =========================
-
         mediaRecorder.ondataavailable =
           (event) => {
             if (
@@ -296,10 +419,6 @@ export default function MessageComposer({
               );
             }
           };
-
-        // =========================
-        // RECORDING STOP
-        // =========================
 
         mediaRecorder.onstop = () => {
           const blob =
@@ -320,7 +439,6 @@ export default function MessageComposer({
           setAudioBlob(blob);
           setAudioUrl(url);
 
-          // Stop microphone
           stream
             .getTracks()
             .forEach((track) => {
@@ -330,10 +448,6 @@ export default function MessageComposer({
           mediaStreamRef.current =
             null;
         };
-
-        // =========================
-        // START
-        // =========================
 
         mediaRecorder.start();
 
@@ -458,7 +572,6 @@ export default function MessageComposer({
       return;
     }
 
-    // Convert Blob → File
     const voiceFile = new File(
       [audioBlob],
       `voice-${Date.now()}.webm`,
@@ -478,10 +591,10 @@ export default function MessageComposer({
       },
     );
 
-    // Send File through existing onSend flow
-    onSend?.(voiceFile);
+    onSend?.({
+      attachments: [voiceFile],
+    });
 
-    // Cleanup preview
     if (audioUrl) {
       URL.revokeObjectURL(
         audioUrl,
@@ -672,166 +785,295 @@ export default function MessageComposer({
 
   return (
     <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
-      <div className="mx-auto flex max-w-4xl items-end gap-2">
-        {/* ATTACHMENT */}
+      <div className="mx-auto max-w-4xl">
 
-        <button
-          type="button"
-          onClick={
-            handleAttachmentClick
-          }
-          disabled={disabled}
-          className="
-            flex h-10 w-10 shrink-0
-            items-center justify-center
-            rounded-full
-            text-slate-500
-            transition
-            hover:bg-slate-100
-            hover:text-slate-700
-            disabled:cursor-not-allowed
-            disabled:opacity-50
-          "
-          title="Attach file"
-        >
-          <Paperclip size={20} />
-        </button>
+        {/* ATTACHMENT PREVIEW */}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={
-            handleFileChange
-          }
-        />
-
-        {/* MESSAGE INPUT */}
-
-        <div
-          className="
-            flex min-h-10 flex-1
-            items-end
-            rounded-2xl
-            border border-slate-200
-            bg-slate-50
-            px-3 py-2
-            transition
-            focus-within:border-slate-300
-            focus-within:bg-white
-          "
-        >
-          <textarea
-            value={message}
-            onChange={
-              handleMessageChange
-            }
-            onKeyDown={
-              handleKeyDown
-            }
-            disabled={disabled}
-            rows={1}
-            placeholder="Type a message..."
+        {selectedFiles.length > 0 && (
+          <div
             className="
+              mb-3
+              flex
               max-h-32
-              min-h-6
-              flex-1
-              resize-none
-              bg-transparent
-              px-1
-              text-sm
-              text-slate-800
-              outline-none
-              placeholder:text-slate-400
-              disabled:cursor-not-allowed
+              flex-wrap
+              gap-2
+              overflow-y-auto
+              rounded-2xl
+              border
+              border-slate-200
+              bg-slate-50
+              p-2
             "
-          />
+          >
+            {selectedFiles.map(
+              (file, index) => (
+                <div
+                  key={`${file.name}-${file.lastModified}-${index}`}
+                  className="
+                    flex
+                    min-w-0
+                    max-w-[240px]
+                    items-center
+                    gap-2
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-white
+                    px-2
+                    py-2
+                  "
+                >
+                  <span className="shrink-0 text-lg">
+                    {getFileIcon(file)}
+                  </span>
 
-          {/* EMOJI */}
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="
+                        truncate
+                        text-xs
+                        font-medium
+                        text-slate-700
+                      "
+                      title={file.name}
+                    >
+                      {file.name}
+                    </p>
+
+                    <p className="text-[10px] text-slate-400">
+                      {formatFileSize(
+                        file.size,
+                      )}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleRemoveFile(
+                        index,
+                      )
+                    }
+                    className="
+                      flex
+                      h-6
+                      w-6
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      text-slate-400
+                      transition
+                      hover:bg-slate-100
+                      hover:text-red-500
+                    "
+                    title="Remove file"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        )}
+
+        {/* COMPOSER */}
+
+        <div className="flex items-end gap-2">
+
+          {/* ATTACHMENT */}
 
           <button
             type="button"
+            onClick={
+              handleAttachmentClick
+            }
             disabled={disabled}
             className="
-              ml-1
-              flex h-7 w-7 shrink-0
-              items-center justify-center
+              flex h-10 w-10
+              shrink-0
+              items-center
+              justify-center
               rounded-full
-              text-slate-400
+              text-slate-500
               transition
               hover:bg-slate-100
-              hover:text-slate-600
+              hover:text-slate-700
+              disabled:cursor-not-allowed
               disabled:opacity-50
             "
-            title="Emoji"
+            title="Attach file"
           >
-            <Smile size={19} />
+            <Paperclip size={20} />
+          </button>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="
+              image/jpeg,
+              image/png,
+              image/webp,
+              image/gif,
+              video/mp4,
+              video/webm,
+              video/quicktime,
+              audio/mpeg,
+              audio/wav,
+              audio/webm,
+              audio/ogg,
+              application/pdf,
+              application/msword,
+              application/vnd.openxmlformats-officedocument.wordprocessingml.document,
+              application/vnd.ms-excel,
+              application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,
+              text/plain
+            "
+            className="hidden"
+            onChange={
+              handleFileChange
+            }
+          />
+
+          {/* MESSAGE INPUT */}
+
+          <div
+            className="
+              flex min-h-10 flex-1
+              items-end
+              rounded-2xl
+              border border-slate-200
+              bg-slate-50
+              px-3 py-2
+              transition
+              focus-within:border-slate-300
+              focus-within:bg-white
+            "
+          >
+            <textarea
+              value={message}
+              onChange={
+                handleMessageChange
+              }
+              onKeyDown={
+                handleKeyDown
+              }
+              disabled={disabled}
+              rows={1}
+              placeholder="Type a message..."
+              className="
+                max-h-32
+                min-h-6
+                flex-1
+                resize-none
+                bg-transparent
+                px-1
+                text-sm
+                text-slate-800
+                outline-none
+                placeholder:text-slate-400
+                disabled:cursor-not-allowed
+              "
+            />
+
+            {/* EMOJI */}
+
+            <button
+              type="button"
+              disabled={disabled}
+              className="
+                ml-1
+                flex h-7 w-7
+                shrink-0
+                items-center
+                justify-center
+                rounded-full
+                text-slate-400
+                transition
+                hover:bg-slate-100
+                hover:text-slate-600
+                disabled:opacity-50
+              "
+              title="Emoji"
+            >
+              <Smile size={19} />
+            </button>
+          </div>
+
+          {/* VOICE */}
+
+          <button
+            type="button"
+            onClick={
+              handleStartRecording
+            }
+            disabled={
+              disabled ||
+              selectedFiles.length > 0
+            }
+            className="
+              flex h-10 w-10
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              text-slate-500
+              transition
+              hover:bg-slate-100
+              hover:text-slate-700
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
+            title="Record voice"
+          >
+            <Mic size={20} />
+          </button>
+
+          {/* SEND */}
+
+          <button
+            type="button"
+            onClick={handleSend}
+            disabled={
+              disabled ||
+              (
+                !message.trim() &&
+                selectedFiles.length === 0
+              )
+            }
+            className="
+              flex h-10 w-10
+              shrink-0
+              items-center
+              justify-center
+              rounded-full
+              bg-slate-900
+              text-white
+              transition
+              hover:bg-slate-800
+              disabled:cursor-not-allowed
+              disabled:bg-slate-200
+              disabled:text-slate-400
+            "
+            title="Send message"
+          >
+            <Send size={18} />
           </button>
         </div>
 
-        {/* VOICE */}
-
-        <button
-          type="button"
-          onClick={
-            handleStartRecording
-          }
-          disabled={disabled}
+        <p
           className="
-            flex h-10 w-10 shrink-0
-            items-center justify-center
-            rounded-full
-            text-slate-500
-            transition
-            hover:bg-slate-100
-            hover:text-slate-700
-            disabled:cursor-not-allowed
-            disabled:opacity-50
+            mx-auto mt-1
+            hidden
+            text-[11px]
+            text-slate-400
+            sm:block
           "
-          title="Record voice"
         >
-          <Mic size={20} />
-        </button>
-
-        {/* SEND */}
-
-        <button
-          type="button"
-          onClick={handleSend}
-          disabled={
-            disabled ||
-            !message.trim()
-          }
-          className="
-            flex h-10 w-10 shrink-0
-            items-center justify-center
-            rounded-full
-            bg-slate-900
-            text-white
-            transition
-            hover:bg-slate-800
-            disabled:cursor-not-allowed
-            disabled:bg-slate-200
-            disabled:text-slate-400
-          "
-          title="Send message"
-        >
-          <Send size={18} />
-        </button>
+          Enter to send · Shift + Enter for new line
+        </p>
       </div>
-
-      <p
-        className="
-          mx-auto mt-1
-          hidden max-w-4xl
-          text-[11px]
-          text-slate-400
-          sm:block
-        "
-      >
-        Enter to send · Shift + Enter for new line
-      </p>
     </div>
   );
 }

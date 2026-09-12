@@ -1,6 +1,7 @@
 import { baseApi } from "@/src/redux/api/baseApi";
 
 import type {
+  DeleteMessageResponse,
   Message,
   MessagesResponse,
 } from "./message.types";
@@ -24,213 +25,199 @@ interface SingleMessageResponse {
   data: Message;
 }
 
-export const messageApi =
-  baseApi.injectEndpoints({
-    endpoints: (builder) => ({
-      // ========================================
-      // GET MESSAGES
-      // ========================================
+export const messageApi = baseApi.injectEndpoints({
+  endpoints: (builder) => ({
+    // ========================================
+    // GET MESSAGES
+    // ========================================
 
-      getMessages: builder.query<
-        MessagesResponse["data"],
-        GetMessagesParams
-      >({
-        query: ({
-          conversationId,
-          page = 1,
-          limit = 30,
-        }) => ({
-          url: `/message/${conversationId}/messages`,
-          method: "GET",
-          params: {
-            page,
-            limit,
-          },
-        }),
-
-        transformResponse: (
-          response: MessagesResponse,
-        ) => response.data,
-
-        providesTags: (
-          _result,
-          _error,
-          { conversationId },
-        ) => [
-          {
-            type: "Message",
-            id: conversationId,
-          },
-        ],
+    getMessages: builder.query<MessagesResponse["data"], GetMessagesParams>({
+      query: ({ conversationId, page = 1, limit = 30 }) => ({
+        url: `/message/${conversationId}/messages`,
+        method: "GET",
+        params: {
+          page,
+          limit,
+        },
       }),
 
-      // ========================================
-      // SEND MESSAGE
-      // ========================================
+      transformResponse: (response: MessagesResponse) => response.data,
 
-      sendMessage: builder.mutation<
-        Message,
-        SendMessageRequest
-      >({
-        query: ({
-          conversationId,
-          text,
-          replyTo,
-          attachments,
-        }) => {
-          // ====================================
-          // FILE / VOICE / IMAGE / VIDEO MESSAGE
-          // ====================================
+      providesTags: (_result, _error, { conversationId }) => [
+        {
+          type: "Message",
+          id: conversationId,
+        },
+      ],
+    }),
 
-          if (
-            attachments &&
-            attachments.length > 0
-          ) {
-            const formData = new FormData();
+    // ========================================
+    // SEND MESSAGE
+    // ========================================
 
-            formData.append(
-              "conversationId",
-              conversationId,
-            );
+    sendMessage: builder.mutation<Message, SendMessageRequest>({
+      query: ({ conversationId, text, replyTo, attachments }) => {
+        // ====================================
+        // FILE / VOICE / IMAGE / VIDEO MESSAGE
+        // ====================================
 
-            if (text?.trim()) {
-              formData.append(
-                "text",
-                text.trim(),
-              );
-            }
+        if (attachments && attachments.length > 0) {
+          const formData = new FormData();
 
-            if (replyTo) {
-              formData.append(
-                "replyTo",
-                replyTo,
-              );
-            }
+          formData.append("conversationId", conversationId);
 
-            attachments.forEach(
-              (file) => {
-                formData.append(
-                  "attachments",
-                  file,
-                );
-              },
-            );
-
-            return {
-              url: "/message",
-              method: "POST",
-              body: formData,
-            };
+          if (text?.trim()) {
+            formData.append("text", text.trim());
           }
 
-          // ====================================
-          // NORMAL TEXT MESSAGE
-          // ====================================
+          if (replyTo) {
+            formData.append("replyTo", replyTo);
+          }
+
+          attachments.forEach((file) => {
+            formData.append("attachments", file);
+          });
 
           return {
             url: "/message",
             method: "POST",
-            body: {
-              conversationId,
-
-              ...(text?.trim()
-                ? {
-                    text: text.trim(),
-                  }
-                : {}),
-
-              ...(replyTo
-                ? {
-                    replyTo,
-                  }
-                : {}),
-            },
+            body: formData,
           };
-        },
+        }
 
-        transformResponse: (
-          response: SingleMessageResponse,
-        ) => response.data,
+        // ====================================
+        // NORMAL TEXT MESSAGE
+        // ====================================
 
-        // ========================================
-        // UPDATE MESSAGE CACHE
-        // ========================================
+        return {
+          url: "/message",
+          method: "POST",
+          body: {
+            conversationId,
 
-        async onQueryStarted(
-          { conversationId },
-          {
-            dispatch,
-            queryFulfilled,
+            ...(text?.trim()
+              ? {
+                  text: text.trim(),
+                }
+              : {}),
+
+            ...(replyTo
+              ? {
+                  replyTo,
+                }
+              : {}),
           },
-        ) {
-          try {
-            const {
-              data: newMessage,
-            } = await queryFulfilled;
+        };
+      },
 
-            dispatch(
-              messageApi.util.updateQueryData(
-                "getMessages",
-                {
-                  conversationId,
-                  page: 1,
-                  limit: 30,
-                },
-                (draft) => {
-                  // Prevent duplicate message
-                  const exists =
-                    draft.messages.some(
-                      (message) =>
-                        String(
-                          message._id,
-                        ) ===
-                        String(
-                          newMessage._id,
-                        ),
-                    );
+      transformResponse: (response: SingleMessageResponse) => response.data,
 
-                  if (exists) {
-                    return;
-                  }
+      // ========================================
+      // UPDATE MESSAGE CACHE
+      // ========================================
 
-                  // Add new message
-                  draft.messages.push(
-                    newMessage,
-                  );
+      async onQueryStarted({ conversationId }, { dispatch, queryFulfilled }) {
+        try {
+          const { data: newMessage } = await queryFulfilled;
 
-                  // Keep messages chronological
-                  draft.messages.sort(
-                    (a, b) =>
-                      new Date(
-                        a.createdAt,
-                      ).getTime() -
-                      new Date(
-                        b.createdAt,
-                      ).getTime(),
-                  );
-                },
-              ),
-            );
-          } catch (error) {
-            console.error(
-              "Failed to update message cache:",
-              error,
-            );
-          }
-        },
+          dispatch(
+            messageApi.util.updateQueryData(
+              "getMessages",
+              {
+                conversationId,
+                page: 1,
+                limit: 30,
+              },
+              (draft) => {
+                // Prevent duplicate message
+                const exists = draft.messages.some(
+                  (message) => String(message._id) === String(newMessage._id),
+                );
 
-        // ========================================
-        // INVALIDATE CONVERSATION
-        // ========================================
+                if (exists) {
+                  return;
+                }
 
-        invalidatesTags: [
-          "Conversation",
-        ],
-      }),
+                // Add new message
+                draft.messages.push(newMessage);
+
+                // Keep messages chronological
+                draft.messages.sort(
+                  (a, b) =>
+                    new Date(a.createdAt).getTime() -
+                    new Date(b.createdAt).getTime(),
+                );
+              },
+            ),
+          );
+        } catch (error) {
+          console.error("Failed to update message cache:", error);
+        }
+      },
+
+      // ========================================
+      // INVALIDATE CONVERSATION
+      // ========================================
+
+      invalidatesTags: ["Conversation"],
     }),
-  });
+
+    // ========================================
+    // DELETE MESSAGE
+    // ========================================
+
+    // ========================================
+    // DELETE MESSAGE
+    // ========================================
+
+    // DELETE MESSAGE
+    deleteMessage: builder.mutation<DeleteMessageResponse, string>({
+      query: (messageId) => ({
+        url: `/message/${messageId}`,
+        method: "DELETE",
+      }),
+
+      async onQueryStarted(messageId, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+
+          dispatch(
+            messageApi.util.updateQueryData(
+              "getMessages",
+              {
+                conversationId: data.data.conversationId,
+                page: 1,
+                limit: 30,
+              },
+              (draft) => {
+                const target = draft.messages.find(
+                  (message) =>
+                    String(message._id) === String(data.data.messageId),
+                );
+
+                if (!target) {
+                  return;
+                }
+
+                target.isDeleted = true;
+                target.deletedAt = data.data.deletedAt;
+                target.text = "";
+                target.attachments = [];
+              },
+            ),
+          );
+        } catch (error) {
+          console.error("Failed to delete message:", error);
+        }
+      },
+
+      invalidatesTags: ["Conversation"],
+    }),
+  }),
+});
 
 export const {
   useGetMessagesQuery,
   useSendMessageMutation,
+  useDeleteMessageMutation,
 } = messageApi;
