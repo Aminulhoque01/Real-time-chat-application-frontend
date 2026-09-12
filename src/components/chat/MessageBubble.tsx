@@ -4,7 +4,6 @@ import {
   Check,
   CheckCheck,
   FileText,
-  Play,
 } from "lucide-react";
 
 import type { Message } from "@/src/redux/features/message/message.types";
@@ -67,9 +66,9 @@ const getDeliveryStatus = (
     message.deliveredTo?.length ?? 0;
 
   /*
-    Read / Seen
+    READ
     ----------------
-    If at least one recipient
+    At least one recipient
     has read the message.
   */
   if (readCount > 0) {
@@ -77,7 +76,7 @@ const getDeliveryStatus = (
   }
 
   /*
-    Delivered
+    DELIVERED
     ----------------
     Message reached at least
     one recipient.
@@ -87,10 +86,9 @@ const getDeliveryStatus = (
   }
 
   /*
-    Sent
+    SENT
     ----------------
-    Message was sent but has
-    not been delivered yet.
+    Message has been sent.
   */
   return "sent";
 };
@@ -149,7 +147,7 @@ function DeliveryStatus({
       aria-label="Sent"
     />
   );
-}
+};
 
 /* ----------------------------------
    Message Bubble
@@ -168,7 +166,7 @@ export default function MessageBubble({
     Boolean(message.text?.trim());
 
   const hasAttachments =
-    message.attachments &&
+    Array.isArray(message.attachments) &&
     message.attachments.length > 0;
 
   return (
@@ -269,7 +267,7 @@ export default function MessageBubble({
           ) : (
             <div className="space-y-2">
               {/* --------------------------------
-                  Text
+                  Text Message
               -------------------------------- */}
 
               {hasText && (
@@ -298,9 +296,9 @@ export default function MessageBubble({
                     ) => {
                       const key = `${message._id}-${index}`;
 
-                      /* ---------------------------
-                         Image
-                      --------------------------- */
+                      /* =========================
+                         IMAGE
+                      ========================= */
 
                       if (
                         attachment.type ===
@@ -322,21 +320,21 @@ export default function MessageBubble({
                                 attachment.name ||
                                 "Image"
                               }
+                              loading="lazy"
                               className="
                                 max-h-80
                                 max-w-full
                                 rounded-xl
                                 object-cover
                               "
-                              loading="lazy"
                             />
                           </div>
                         );
                       }
 
-                      /* ---------------------------
-                         Video
-                      --------------------------- */
+                      /* =========================
+                         VIDEO
+                      ========================= */
 
                       if (
                         attachment.type ===
@@ -366,9 +364,9 @@ export default function MessageBubble({
                         );
                       }
 
-                      /* ---------------------------
-                         Audio / Voice Message
-                      --------------------------- */
+                      /* =========================
+                         AUDIO / VOICE MESSAGE
+                      ========================= */
 
                       if (
                         attachment.type ===
@@ -378,9 +376,6 @@ export default function MessageBubble({
                           <div
                             key={key}
                             className={`
-                              flex
-                              items-center
-                              gap-2
                               rounded-xl
                               p-2
                               ${
@@ -390,28 +385,6 @@ export default function MessageBubble({
                               }
                             `}
                           >
-                            <div
-                              className={`
-                                flex
-                                h-8
-                                w-8
-                                shrink-0
-                                items-center
-                                justify-center
-                                rounded-full
-                                ${
-                                  isMine
-                                    ? "bg-white/10"
-                                    : "bg-slate-100"
-                                }
-                              `}
-                            >
-                              <Play
-                                size={15}
-                                fill="currentColor"
-                              />
-                            </div>
-
                             <audio
                               src={
                                 attachment.url
@@ -420,16 +393,16 @@ export default function MessageBubble({
                               preload="metadata"
                               className="
                                 h-9
-                                max-w-[220px]
+                                max-w-[260px]
                               "
                             />
                           </div>
                         );
                       }
 
-                      /* ---------------------------
-                         File / Document
-                      --------------------------- */
+                      /* =========================
+                         FILE / DOCUMENT
+                      ========================= */
 
                       return (
                         <a
@@ -501,11 +474,11 @@ export default function MessageBubble({
                             {typeof attachment.size ===
                               "number" && (
                               <p
-                                className={`
+                                className="
                                   mt-0.5
                                   text-[10px]
                                   text-slate-400
-                                `}
+                                "
                               >
                                 {formatFileSize(
                                   attachment.size,
@@ -558,9 +531,7 @@ export default function MessageBubble({
               </span>
             )}
 
-          {/* --------------------------------
-              Delivery / Read Status
-          -------------------------------- */}
+          {/* Delivery / Read Status */}
 
           {isMine && (
             <DeliveryStatus

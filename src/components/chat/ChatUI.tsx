@@ -17,7 +17,10 @@ interface ChatUIProps {
 
   onOpenSidebar: () => void;
 
-  onSendMessage?: (message: string) => void;
+  // Text message + Voice message
+  onSendMessage?: (
+    content: string | File,
+  ) => void;
 
   onTypingStart?: () => void;
   onTypingStop?: () => void;
@@ -26,8 +29,6 @@ interface ChatUIProps {
   markMessageAsRead?: (
     messageId: string,
   ) => void;
-
-  
 
   isTyping?: boolean;
   typingUserName?: string;
@@ -55,7 +56,10 @@ const getConversationName = (
   currentUserId?: string,
 ): string => {
   if (conversation.type === "group") {
-    return conversation.name?.trim() || "Group";
+    return (
+      conversation.name?.trim() ||
+      "Group"
+    );
   }
 
   const otherUser =
@@ -88,8 +92,6 @@ const getConversationAvatar = (
   return otherUser?.avatar || null;
 };
 
-
-
 export default function ChatUI({
   conversation,
   currentUserId,
@@ -101,10 +103,11 @@ export default function ChatUI({
   isTyping = false,
   typingUserName,
 }: ChatUIProps) {
-    console.log(
+  console.log(
     "CHAT UI markMessageAsRead:",
     markMessageAsRead,
   );
+
   if (!conversation) {
     return (
       <main className="flex min-h-0 flex-1 flex-col bg-white">
@@ -143,17 +146,15 @@ export default function ChatUI({
         otherUser={otherUser}
         onOpenSidebar={onOpenSidebar}
       />
-      
+
       <div className="min-h-0 flex-1 overflow-hidden">
         <MessageList
-        
           conversationId={conversation._id}
           currentUserId={currentUserId}
           markMessageAsRead={
             markMessageAsRead
           }
         />
-        
       </div>
 
       <div

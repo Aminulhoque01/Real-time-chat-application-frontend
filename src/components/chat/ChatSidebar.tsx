@@ -7,11 +7,9 @@ import {
   Search,
 } from "lucide-react";
 import { useMemo, useState } from "react";
- 
+
 import { useAppSelector } from "@/src/redux/hooks";
 import { useGetConversationsQuery } from "@/src/redux/features/conversation/conversationApi";
-
- 
 
 interface ChatSidebarProps {
   selectedConversationId: string | null;
@@ -32,7 +30,8 @@ const formatTime = (date?: string) => {
   const now = new Date();
 
   const isToday =
-    messageDate.toDateString() === now.toDateString();
+    messageDate.toDateString() ===
+    now.toDateString();
 
   if (isToday) {
     return messageDate.toLocaleTimeString([], {
@@ -46,6 +45,10 @@ const formatTime = (date?: string) => {
     day: "numeric",
   });
 };
+
+/* ----------------------------------
+   Get Other Participant
+---------------------------------- */
 
 const getOtherParticipant = (
   conversation: any,
@@ -63,6 +66,10 @@ const getOtherParticipant = (
   );
 };
 
+/* ----------------------------------
+   Conversation Name
+---------------------------------- */
+
 const getConversationName = (
   conversation: any,
   currentUserId?: string,
@@ -71,13 +78,22 @@ const getConversationName = (
     return conversation.name || "Group";
   }
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-  return otherUser?.name || otherUser?.phone || "Unknown";
+  return (
+    otherUser?.name ||
+    otherUser?.phone ||
+    "Unknown"
+  );
 };
+
+/* ----------------------------------
+   Conversation Avatar
+---------------------------------- */
 
 const getConversationAvatar = (
   conversation: any,
@@ -87,12 +103,61 @@ const getConversationAvatar = (
     return null;
   }
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
   return otherUser?.avatar || null;
+};
+
+/* ----------------------------------
+   Last Message Preview
+---------------------------------- */
+
+const getLastMessagePreview = (
+  conversation: any,
+) => {
+  const lastMessage =
+    conversation.lastMessage;
+
+  if (!lastMessage) {
+    return "No messages yet";
+  }
+
+  // Text message
+  if (lastMessage.text?.trim()) {
+    return lastMessage.text;
+  }
+
+  // Attachments
+  const attachments =
+    lastMessage.attachments;
+
+  if (
+    Array.isArray(attachments) &&
+    attachments.length > 0
+  ) {
+    const firstAttachment =
+      attachments[0];
+
+    switch (firstAttachment?.type) {
+      case "audio":
+        return "🎤 Voice message";
+
+      case "video":
+        return "🎥 Video";
+
+      case "image":
+        return "🖼️ Image";
+
+      default:
+        return "📎 File";
+    }
+  }
+
+  return "No messages yet";
 };
 
 export default function ChatSidebar({
@@ -113,29 +178,39 @@ export default function ChatSidebar({
 
   const [search, setSearch] = useState("");
 
-  const filteredConversations = useMemo(() => {
-    const value = search.trim().toLowerCase();
+  const filteredConversations =
+    useMemo(() => {
+      const value =
+        search.trim().toLowerCase();
 
-    if (!value) {
-      return conversations;
-    }
+      if (!value) {
+        return conversations;
+      }
 
-    return conversations.filter((conversation) => {
-      const name = getConversationName(
-        conversation,
-        user?._id,
-      ).toLowerCase();
+      return conversations.filter(
+        (conversation) => {
+          const name =
+            getConversationName(
+              conversation,
+              user?._id,
+            ).toLowerCase();
 
-      const lastMessage =
-        conversation.lastMessage?.text?.toLowerCase() ||
-        "";
+          const lastMessage =
+            getLastMessagePreview(
+              conversation,
+            ).toLowerCase();
 
-      return (
-        name.includes(value) ||
-        lastMessage.includes(value)
+          return (
+            name.includes(value) ||
+            lastMessage.includes(value)
+          );
+        },
       );
-    });
-  }, [conversations, search, user?._id]);
+    }, [
+      conversations,
+      search,
+      user?._id,
+    ]);
 
   return (
     <aside
@@ -143,9 +218,7 @@ export default function ChatSidebar({
         absolute z-40 flex h-full w-[320px]
         flex-col border-r border-slate-200
         bg-white transition-transform duration-300
-
         lg:relative lg:translate-x-0
-
         ${
           isOpen
             ? "translate-x-0"
@@ -221,23 +294,25 @@ export default function ChatSidebar({
 
         {isLoading && (
           <div className="space-y-2">
-            {[1, 2, 3, 4, 5, 6].map((item) => (
-              <div
-                key={item}
-                className="
-                  flex animate-pulse
-                  items-center gap-3
-                  rounded-xl p-3
-                "
-              >
-                <div className="h-12 w-12 rounded-full bg-slate-200" />
+            {[1, 2, 3, 4, 5, 6].map(
+              (item) => (
+                <div
+                  key={item}
+                  className="
+                    flex animate-pulse
+                    items-center gap-3
+                    rounded-xl p-3
+                  "
+                >
+                  <div className="h-12 w-12 rounded-full bg-slate-200" />
 
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-28 rounded bg-slate-200" />
-                  <div className="h-3 w-40 rounded bg-slate-100" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3 w-28 rounded bg-slate-200" />
+                    <div className="h-3 w-40 rounded bg-slate-100" />
+                  </div>
                 </div>
-              </div>
-            ))}
+              ),
+            )}
           </div>
         )}
 
@@ -259,7 +334,8 @@ export default function ChatSidebar({
 
         {!isLoading &&
           !isError &&
-          filteredConversations.length === 0 && (
+          filteredConversations.length ===
+            0 && (
             <div className="flex h-64 flex-col items-center justify-center text-center">
               <div
                 className="
@@ -289,15 +365,17 @@ export default function ChatSidebar({
         <div className="space-y-1">
           {filteredConversations.map(
             (conversation) => {
-              const name = getConversationName(
-                conversation,
-                user?._id,
-              );
+              const name =
+                getConversationName(
+                  conversation,
+                  user?._id,
+                );
 
-              const avatar = getConversationAvatar(
-                conversation,
-                user?._id,
-              );
+              const avatar =
+                getConversationAvatar(
+                  conversation,
+                  user?._id,
+                );
 
               const otherUser =
                 getOtherParticipant(
@@ -308,6 +386,11 @@ export default function ChatSidebar({
               const isActive =
                 conversation._id ===
                 selectedConversationId;
+
+              const lastMessagePreview =
+                getLastMessagePreview(
+                  conversation,
+                );
 
               return (
                 <button
@@ -323,7 +406,6 @@ export default function ChatSidebar({
                     items-center gap-3
                     rounded-xl p-3 text-left
                     transition
-
                     ${
                       isActive
                         ? "bg-slate-100"
@@ -381,7 +463,6 @@ export default function ChatSidebar({
                       <p
                         className={`
                           truncate text-sm
-
                           ${
                             conversation.unreadCount >
                             0
@@ -395,7 +476,8 @@ export default function ChatSidebar({
 
                       <span className="shrink-0 text-[10px] text-slate-400">
                         {formatTime(
-                          conversation.lastMessage
+                          conversation
+                            .lastMessage
                             ?.createdAt,
                         )}
                       </span>
@@ -405,7 +487,6 @@ export default function ChatSidebar({
                       <p
                         className={`
                           truncate text-xs
-
                           ${
                             conversation.unreadCount >
                             0
@@ -414,8 +495,7 @@ export default function ChatSidebar({
                           }
                         `}
                       >
-                        {conversation.lastMessage
-                          ?.text || "No messages yet"}
+                        {lastMessagePreview}
                       </p>
 
                       {/* Unread Count */}

@@ -221,13 +221,63 @@ export default function ChatLayout() {
   // =========================
   // SEND MESSAGE
   // =========================
+  //
+  // Supports:
+  // 1. Text message -> string
+  // 2. Voice message -> File
+  //
+  // Actual File/FormData upload
+  // will be connected in the next step.
+  // =========================
 
   const handleSendMessage = async (
-    message: string,
+    content: string | File,
   ) => {
+    // =================================
+    // VOICE / FILE MESSAGE
+    // =================================
+
+    if (content instanceof File) {
+      if (!selectedConversationId) {
+        return;
+      }
+
+      console.log(
+        "SENDING VOICE FILE:",
+        content,
+      );
+
+      try {
+        const result =
+          await sendMessage({
+            conversationId:
+              selectedConversationId,
+            attachments: [content],
+          }).unwrap();
+
+        console.log(
+          "VOICE MESSAGE SENT SUCCESSFULLY:",
+          result,
+        );
+      } catch (error) {
+        console.error(
+          "VOICE MESSAGE SEND ERROR:",
+          error,
+        );
+      }
+
+      return;
+    }
+
+    // =================================
+    // TEXT MESSAGE
+    // =================================
+
+    const message = content.trim();
+
     if (
       !selectedConversationId ||
-      !message.trim()
+      !message
     ) {
       return;
     }
@@ -237,7 +287,7 @@ export default function ChatLayout() {
       {
         conversationId:
           selectedConversationId,
-        text: message.trim(),
+        text: message,
       },
     );
 
@@ -246,7 +296,7 @@ export default function ChatLayout() {
         await sendMessage({
           conversationId:
             selectedConversationId,
-          text: message.trim(),
+          text: message,
         }).unwrap();
 
       console.log(

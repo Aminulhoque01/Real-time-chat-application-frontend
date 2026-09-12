@@ -11,10 +11,11 @@ interface GetMessagesParams {
   limit?: number;
 }
 
-interface SendMessageRequest {
+export interface SendMessageRequest {
   conversationId: string;
   text?: string;
   replyTo?: string;
+  attachments?: File[];
 }
 
 interface SingleMessageResponse {
@@ -41,7 +42,6 @@ export const messageApi =
         }) => ({
           url: `/message/${conversationId}/messages`,
           method: "GET",
-
           params: {
             page,
             limit,
@@ -53,8 +53,8 @@ export const messageApi =
         ) => response.data,
 
         providesTags: (
-          result,
-          error,
+          _result,
+          _error,
           { conversationId },
         ) => [
           {
@@ -72,19 +72,89 @@ export const messageApi =
         Message,
         SendMessageRequest
       >({
-        query: (body) => ({
-          url: "/message",
-          method: "POST",
-          body,
-        }),
+        query: ({
+          conversationId,
+          text,
+          replyTo,
+          attachments,
+        }) => {
+          // ====================================
+          // FILE / VOICE / IMAGE / VIDEO MESSAGE
+          // ====================================
+
+          if (
+            attachments &&
+            attachments.length > 0
+          ) {
+            const formData = new FormData();
+
+            formData.append(
+              "conversationId",
+              conversationId,
+            );
+
+            if (text?.trim()) {
+              formData.append(
+                "text",
+                text.trim(),
+              );
+            }
+
+            if (replyTo) {
+              formData.append(
+                "replyTo",
+                replyTo,
+              );
+            }
+
+            attachments.forEach(
+              (file) => {
+                formData.append(
+                  "attachments",
+                  file,
+                );
+              },
+            );
+
+            return {
+              url: "/message",
+              method: "POST",
+              body: formData,
+            };
+          }
+
+          // ====================================
+          // NORMAL TEXT MESSAGE
+          // ====================================
+
+          return {
+            url: "/message",
+            method: "POST",
+            body: {
+              conversationId,
+
+              ...(text?.trim()
+                ? {
+                    text: text.trim(),
+                  }
+                : {}),
+
+              ...(replyTo
+                ? {
+                    replyTo,
+                  }
+                : {}),
+            },
+          };
+        },
 
         transformResponse: (
           response: SingleMessageResponse,
         ) => response.data,
 
-        // --------------------------------------
-        // Update sender's message cache
-        // --------------------------------------
+        // ========================================
+        // UPDATE MESSAGE CACHE
+        // ========================================
 
         async onQueryStarted(
           { conversationId },
@@ -123,11 +193,12 @@ export const messageApi =
                     return;
                   }
 
+                  // Add new message
                   draft.messages.push(
                     newMessage,
                   );
 
-                  // Keep chronological order
+                  // Keep messages chronological
                   draft.messages.sort(
                     (a, b) =>
                       new Date(
@@ -148,14 +219,9 @@ export const messageApi =
           }
         },
 
-        // --------------------------------------
-        // IMPORTANT:
-        //
-        // Do NOT invalidate Message here.
-        //
-        // Otherwise RTK Query may immediately
-        // refetch and replace our cache update.
-        // --------------------------------------
+        // ========================================
+        // INVALIDATE CONVERSATION
+        // ========================================
 
         invalidatesTags: [
           "Conversation",
