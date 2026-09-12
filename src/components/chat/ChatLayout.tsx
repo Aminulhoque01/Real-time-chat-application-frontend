@@ -8,9 +8,13 @@ import {
 import ChatSidebar from "./ChatSidebar";
 import ChatUI from "./ChatUI";
 
-import { useAppSelector } from "@/src/redux/hooks";
+import {
+  useAppDispatch,
+  useAppSelector,
+} from "@/src/redux/hooks";
 
 import {
+  conversationApi,
   useGetConversationsQuery,
 } from "@/src/redux/features/conversation/conversationApi";
 
@@ -21,6 +25,12 @@ import {
 import useChatSocket from "@/src/hooks/useChatSocket";
 
 export default function ChatLayout() {
+  // =========================
+  // REDUX DISPATCH
+  // =========================
+
+  const dispatch = useAppDispatch();
+
   // =========================
   // AUTH USER
   // =========================
@@ -128,22 +138,19 @@ export default function ChatLayout() {
   // =========================
 
   const {
-      sendTypingStart,
-      sendTypingStop,
-      markMessageAsRead,
-    } = useChatSocket({
-      conversationId:
-        selectedConversationId,
+    sendTypingStart,
+    sendTypingStop,
+    markMessageAsRead,
+  } = useChatSocket({
+    conversationId:
+      selectedConversationId,
 
-      onTypingStart:
-        handleTypingStart,
+    onTypingStart:
+      handleTypingStart,
 
-      onTypingStop:
-        handleTypingStop,
-
-
-       
-    });
+    onTypingStop:
+      handleTypingStop,
+  });
 
   // =========================
   // SELECT CONVERSATION
@@ -155,9 +162,42 @@ export default function ChatLayout() {
     // Clear previous typing user
     setTypingUserId(null);
 
+    // =================================
+    // CLEAR UNREAD COUNT IMMEDIATELY
+    // =================================
+
+    dispatch(
+      conversationApi.util.updateQueryData(
+        "getConversations",
+        undefined,
+        (draft) => {
+          const conversation =
+            draft.find(
+              (item) =>
+                String(item._id) ===
+                String(conversationId),
+            );
+
+          if (!conversation) {
+            return;
+          }
+
+          conversation.unreadCount = 0;
+        },
+      ),
+    );
+
+    // =================================
+    // SELECT CONVERSATION
+    // =================================
+
     setSelectedConversationId(
       conversationId,
     );
+
+    // =================================
+    // CLOSE MOBILE SIDEBAR
+    // =================================
 
     setIsSidebarOpen(false);
   };
@@ -235,7 +275,9 @@ export default function ChatLayout() {
 
   return (
     <div className="relative flex h-screen min-h-0 overflow-hidden bg-slate-50">
-      {/* ================= SIDEBAR ================= */}
+      {/* =========================
+          CHAT SIDEBAR
+      ========================= */}
 
       <ChatSidebar
         selectedConversationId={
@@ -248,7 +290,9 @@ export default function ChatLayout() {
         onClose={handleCloseSidebar}
       />
 
-      {/* ================= MOBILE OVERLAY ================= */}
+      {/* =========================
+          MOBILE SIDEBAR OVERLAY
+      ========================= */}
 
       {isSidebarOpen && (
         <button
@@ -263,7 +307,9 @@ export default function ChatLayout() {
         />
       )}
 
-      {/* ================= CHAT ================= */}
+      {/* =========================
+          CHAT UI
+      ========================= */}
 
       <ChatUI
         conversation={
@@ -282,7 +328,7 @@ export default function ChatLayout() {
         onTypingStop={
           sendTypingStop
         }
-         markMessageAsRead={
+        markMessageAsRead={
           markMessageAsRead
         }
         isTyping={isTyping}
