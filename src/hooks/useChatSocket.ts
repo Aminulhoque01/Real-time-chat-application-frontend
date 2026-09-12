@@ -64,10 +64,10 @@ export default function useChatSocket({
   // ==========================================
 
   /*
-    Socket event listeners stay alive even when
+    Socket listeners remain active even when
     conversation changes.
 
-    So we keep the latest values in refs.
+    Therefore keep latest values in refs.
   */
 
   const conversationIdRef =
@@ -115,11 +115,11 @@ export default function useChatSocket({
   // ==========================================
 
   /*
-    If a message needs to be marked as read
-    while socket is not connected, keep its ID here.
+    If socket is disconnected when a message
+    needs to be marked as read, keep its ID.
 
-    Once socket connects, all pending messages
-    will automatically be marked as read.
+    After reconnect, these IDs are automatically
+    emitted again.
   */
 
   const pendingReadMessageIds =
@@ -135,57 +135,57 @@ export default function useChatSocket({
         return;
       }
 
+      const normalizedMessageId =
+        String(messageId);
+
       const socket =
         socketRef.current;
 
-      /*
-        Socket does not exist yet.
-        Queue the message.
-      */
+      // ----------------------------------------
+      // Socket doesn't exist
+      // ----------------------------------------
 
       if (!socket) {
         pendingReadMessageIds.current.add(
-          String(messageId),
+          normalizedMessageId,
         );
 
         console.log(
           "READ QUEUED - socket unavailable:",
-          messageId,
+          normalizedMessageId,
         );
 
         return;
       }
 
-      /*
-        Socket exists but is not connected.
-        Queue the message.
-      */
+      // ----------------------------------------
+      // Socket exists but disconnected
+      // ----------------------------------------
 
       if (!socket.connected) {
         pendingReadMessageIds.current.add(
-          String(messageId),
+          normalizedMessageId,
         );
 
         console.log(
           "READ QUEUED - socket not connected:",
-          messageId,
+          normalizedMessageId,
         );
 
         return;
       }
 
-      /*
-        Socket is connected.
-        Send immediately.
-      */
+      // ----------------------------------------
+      // Socket connected
+      // ----------------------------------------
 
       socket.emit("message:read", {
-        messageId,
+        messageId: normalizedMessageId,
       });
 
       console.log(
         "MESSAGE READ EMITTED:",
-        messageId,
+        normalizedMessageId,
       );
     }, []);
 
@@ -202,12 +202,34 @@ export default function useChatSocket({
       process.env.NEXT_PUBLIC_SOCKET_URL ||
       "http://localhost:5000";
 
+    // ========================================
+    // CREATE SOCKET
+    // ========================================
+
     const socket = io(socketUrl, {
       auth: {
         token,
       },
 
       withCredentials: true,
+
+      // --------------------------------------
+      // RECONNECT CONFIGURATION
+      // --------------------------------------
+
+      reconnection: true,
+
+      // Keep trying to reconnect
+      reconnectionAttempts: Infinity,
+
+      // First retry after 1 second
+      reconnectionDelay: 1000,
+
+      // Maximum retry delay 5 seconds
+      reconnectionDelayMax: 5000,
+
+      // Add slight randomization to retry delay
+      randomizationFactor: 0.5,
     });
 
     socketRef.current = socket;
@@ -222,8 +244,13 @@ export default function useChatSocket({
         socket.id,
       );
 
+      console.log(
+        "Socket transport:",
+        socket.io.engine.transport.name,
+      );
+
       // ======================================
-      // JOIN CURRENT CONVERSATION
+      // REJOIN CURRENT CONVERSATION
       // ======================================
 
       const selectedConversationId =
@@ -255,14 +282,17 @@ export default function useChatSocket({
         pendingReadMessageIds.current
           .size > 0
       ) {
-        console.log(
-          "Flushing pending read messages:",
+        const pendingIds =
           Array.from(
             pendingReadMessageIds.current,
-          ),
+          );
+
+        console.log(
+          "Flushing pending read messages:",
+          pendingIds,
         );
 
-        pendingReadMessageIds.current.forEach(
+        pendingIds.forEach(
           (messageId) => {
             socket.emit(
               "message:read",
@@ -281,6 +311,51 @@ export default function useChatSocket({
         pendingReadMessageIds.current.clear();
       }
     });
+
+    // ========================================
+    // RECONNECT ATTEMPT
+    // ========================================
+
+    socket.io.on(
+      "reconnect_attempt",
+      (attempt) => {
+        console.log(
+          "Socket reconnect attempt:",
+          attempt,
+        );
+      },
+    );
+
+    // ========================================
+    // RECONNECT ERROR
+    // ========================================
+
+    socket.io.on(
+      "reconnect_error",
+      (error) => {
+        console.error(
+          "Socket reconnect error:",
+          error.message,
+        );
+      },
+    );
+
+    // ========================================
+    // RECONNECT SUCCESS
+    // ========================================
+
+    socket.io.on(
+      "reconnect",
+      (attempt) => {
+        console.log(
+          "Socket reconnected successfully:",
+          {
+            socketId: socket.id,
+            attempt,
+          },
+        );
+      },
+    );
 
     // ========================================
     // CONVERSATION JOINED
@@ -889,6 +964,39 @@ export default function useChatSocket({
           "Socket disconnected:",
           reason,
         );
+
+        /*
+          Important:
+
+          The current conversation remains in
+          conversationIdRef.
+
+          After reconnect, "connect" will use
+          that latest conversation ID and join
+          the room again.
+        */
+
+        joinedConversationRef.current =
+          null;
+
+        console.log(
+          "Current conversation preserved for reconnect:",
+          conversationIdRef.current,
+        );
+
+        /*
+          If this was a network/server disconnect,
+          Socket.IO will automatically reconnect.
+
+          If this was a manual client disconnect,
+          no reconnect is needed.
+        */
+
+        console.log(
+          "Will reconnect:",
+          reason !==
+            "io client disconnect",
+        );
       },
     );
 
@@ -897,12 +1005,18 @@ export default function useChatSocket({
     // ========================================
 
     return () => {
+      console.log(
+        "Cleaning up socket:",
+        socket.id,
+      );
+
       // --------------------------------------
       // Leave selected conversation
       // --------------------------------------
 
       if (
-        joinedConversationRef.current
+        joinedConversationRef.current &&
+        socket.connected
       ) {
         socket.emit(
           "conversation:leave",
@@ -911,13 +1025,24 @@ export default function useChatSocket({
               joinedConversationRef.current,
           },
         );
+
+        console.log(
+          "Leaving conversation:",
+          joinedConversationRef.current,
+        );
       }
 
       // --------------------------------------
-      // Remove listeners
+      // Remove Socket listeners
       // --------------------------------------
 
       socket.removeAllListeners();
+
+      // --------------------------------------
+      // Remove Manager listeners
+      // --------------------------------------
+
+      socket.io.removeAllListeners();
 
       // --------------------------------------
       // Disconnect socket
@@ -934,6 +1059,10 @@ export default function useChatSocket({
       ) {
         socketRef.current = null;
       }
+
+      // --------------------------------------
+      // Clear joined conversation
+      // --------------------------------------
 
       joinedConversationRef.current =
         null;
@@ -965,11 +1094,12 @@ export default function useChatSocket({
     }
 
     /*
-      If socket isn't connected yet,
-      don't emit join/leave.
+      Socket is not connected.
 
-      The connect handler will use the
-      latest conversation ID.
+      Don't emit leave/join here.
+
+      After reconnect/connect, the connect
+      handler will use the latest conversation.
     */
 
     if (!socket.connected) {
@@ -982,9 +1112,9 @@ export default function useChatSocket({
     const previousConversationId =
       joinedConversationRef.current;
 
-    /*
-      Nothing changed.
-    */
+    // ========================================
+    // NOTHING CHANGED
+    // ========================================
 
     if (
       previousConversationId ===
