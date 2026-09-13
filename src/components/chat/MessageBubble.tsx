@@ -1,7 +1,7 @@
- 
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+
 import {
   Check,
   CheckCheck,
@@ -72,7 +72,8 @@ const formatFileSize = (bytes: number) => {
 const getDeliveryStatus = (
   message: Message,
 ): "sent" | "delivered" | "read" => {
-  const readCount = message.readBy?.length ?? 0;
+  const readCount =
+    message.readBy?.length ?? 0;
 
   const deliveredCount =
     message.deliveredTo?.length ?? 0;
@@ -93,7 +94,8 @@ function DeliveryStatus({
 }: {
   message: Message;
 }) {
-  const status = getDeliveryStatus(message);
+  const status =
+    getDeliveryStatus(message);
 
   if (status === "read") {
     return (
@@ -141,12 +143,16 @@ export default function MessageBubble({
      State
   ---------------------------------- */
 
-  const [showMenu, setShowMenu] = useState(false);
-
-  const [showDeleteConfirm, setShowDeleteConfirm] =
+  const [showMenu, setShowMenu] =
     useState(false);
 
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [
+    showDeleteConfirm,
+    setShowDeleteConfirm,
+  ] = useState(false);
+
+  const menuRef =
+    useRef<HTMLDivElement>(null);
 
   const [
     deleteMessage,
@@ -154,7 +160,7 @@ export default function MessageBubble({
   ] = useDeleteMessageMutation();
 
   /* ----------------------------------
-     Close menu when clicking outside
+     Close Menu Outside
   ---------------------------------- */
 
   useEffect(() => {
@@ -205,24 +211,11 @@ export default function MessageBubble({
     message.attachments.length > 0;
 
   /* ----------------------------------
-     Delete Message
+     Deleted
   ---------------------------------- */
 
-  const handleDelete = async () => {
-    try {
-      await deleteMessage(
-        String(message._id),
-      ).unwrap();
-
-      setShowDeleteConfirm(false);
-      setShowMenu(false);
-    } catch (error) {
-      console.error(
-        "Failed to delete message:",
-        error,
-      );
-    }
-  };
+  const isDeleted =
+    Boolean(message.isDeleted);
 
   /* ----------------------------------
      Reply
@@ -245,20 +238,38 @@ export default function MessageBubble({
   };
 
   /* ----------------------------------
-     Deleted Message
+     Delete
   ---------------------------------- */
 
-  const isDeleted = Boolean(
-    message.isDeleted,
-  );
+  const handleDelete = async () => {
+    try {
+      await deleteMessage(
+        String(message._id),
+      ).unwrap();
+
+      setShowDeleteConfirm(false);
+      setShowMenu(false);
+    } catch (error) {
+      console.error(
+        "Failed to delete message:",
+        error,
+      );
+    }
+  };
 
   return (
     <div
-      className={`group flex items-end gap-2 ${
-        isMine
-          ? "justify-end"
-          : "justify-start"
-      }`}
+      className={`
+        group
+        flex
+        items-end
+        gap-2
+        ${
+          isMine
+            ? "justify-end"
+            : "justify-start"
+        }
+      `}
     >
       {/* ----------------------------------
           Receiver Avatar
@@ -307,31 +318,51 @@ export default function MessageBubble({
       ---------------------------------- */}
 
       <div
-        className={`flex max-w-[78%] flex-col sm:max-w-md ${
-          isMine
-            ? "items-end"
-            : "items-start"
-        }`}
+        className={`
+          flex
+          max-w-[78%]
+          flex-col
+          sm:max-w-md
+          ${
+            isMine
+              ? "items-end"
+              : "items-start"
+          }
+        `}
       >
         {/* ----------------------------------
             Message + Three Dot Menu
         ---------------------------------- */}
 
         <div
-          className={`flex items-start gap-1 ${
-            isMine
-              ? "flex-row"
-              : "flex-row-reverse"
-          }`}
+          className={`
+            flex
+            items-start
+            gap-1
+            ${
+              isMine
+                ? "flex-row"
+                : "flex-row-reverse"
+            }
+          `}
         >
           {/* ----------------------------------
               Three Dot Menu
+
+              Own Message:
+              Menu → Message
+
+              Other Message:
+              Message → Menu
           ---------------------------------- */}
 
-          {isMine && !isDeleted && (
+          {!isDeleted && (
             <div
               ref={menuRef}
-              className="relative shrink-0"
+              className="
+                relative
+                shrink-0
+              "
             >
               <button
                 type="button"
@@ -371,9 +402,8 @@ export default function MessageBubble({
 
               {showMenu && (
                 <div
-                  className="
+                  className={`
                     absolute
-                    right-0
                     top-9
                     z-50
                     w-44
@@ -386,9 +416,18 @@ export default function MessageBubble({
                     shadow-xl
                     dark:border-slate-700
                     dark:bg-slate-900
-                  "
+                    ${
+                      isMine
+                        ? "left-0"
+                        : "right-0"
+                    }
+                  `}
                 >
-                  {/* Reply */}
+                  {/* ----------------------------------
+                      Reply
+
+                      Everyone can reply
+                  ---------------------------------- */}
 
                   <button
                     type="button"
@@ -418,70 +457,83 @@ export default function MessageBubble({
                     </span>
                   </button>
 
-                  {/* Edit */}
+                  {/* ----------------------------------
+                      Edit
 
-                  <button
-                    type="button"
-                    onClick={handleEdit}
-                    className="
-                      flex
-                      w-full
-                      items-center
-                      gap-3
-                      px-4
-                      py-2.5
-                      text-left
-                      text-sm
-                      text-slate-700
-                      transition
-                      hover:bg-slate-100
-                      dark:text-slate-200
-                      dark:hover:bg-slate-800
-                    "
-                  >
-                    <Pencil
-                      size={16}
-                    />
+                      Own message only
+                  ---------------------------------- */}
 
-                    <span>
-                      Edit message
-                    </span>
-                  </button>
+                  {isMine && (
+                    <button
+                      type="button"
+                      onClick={handleEdit}
+                      className="
+                        flex
+                        w-full
+                        items-center
+                        gap-3
+                        px-4
+                        py-2.5
+                        text-left
+                        text-sm
+                        text-slate-700
+                        transition
+                        hover:bg-slate-100
+                        dark:text-slate-200
+                        dark:hover:bg-slate-800
+                      "
+                    >
+                      <Pencil
+                        size={16}
+                      />
 
-                  {/* Delete */}
+                      <span>
+                        Edit message
+                      </span>
+                    </button>
+                  )}
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowMenu(false);
-                      setShowDeleteConfirm(
-                        true,
-                      );
-                    }}
-                    className="
-                      flex
-                      w-full
-                      items-center
-                      gap-3
-                      px-4
-                      py-2.5
-                      text-left
-                      text-sm
-                      text-red-600
-                      transition
-                      hover:bg-red-50
-                      dark:text-red-400
-                      dark:hover:bg-red-950/30
-                    "
-                  >
-                    <Trash2
-                      size={16}
-                    />
-
-                    <span>
+                  {/* ----------------------------------
                       Delete
-                    </span>
-                  </button>
+
+                      Own message only
+                  ---------------------------------- */}
+
+                  {isMine && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMenu(false);
+
+                        setShowDeleteConfirm(
+                          true,
+                        );
+                      }}
+                      className="
+                        flex
+                        w-full
+                        items-center
+                        gap-3
+                        px-4
+                        py-2.5
+                        text-left
+                        text-sm
+                        text-red-600
+                        transition
+                        hover:bg-red-50
+                        dark:text-red-400
+                        dark:hover:bg-red-950/30
+                      "
+                    >
+                      <Trash2
+                        size={16}
+                      />
+
+                      <span>
+                        Delete
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -551,9 +603,12 @@ export default function MessageBubble({
                         attachment,
                         index,
                       ) => {
-                        const key = `${message._id}-${index}`;
+                        const key =
+                          `${message._id}-${index}`;
 
-                        /* Image */
+                        /* ----------------------------
+                           Image
+                        ---------------------------- */
 
                         if (
                           attachment.type ===
@@ -587,7 +642,9 @@ export default function MessageBubble({
                           );
                         }
 
-                        /* Video */
+                        /* ----------------------------
+                           Video
+                        ---------------------------- */
 
                         if (
                           attachment.type ===
@@ -617,7 +674,9 @@ export default function MessageBubble({
                           );
                         }
 
-                        /* Audio */
+                        /* ----------------------------
+                           Audio / Voice
+                        ---------------------------- */
 
                         if (
                           attachment.type ===
@@ -651,7 +710,9 @@ export default function MessageBubble({
                           );
                         }
 
-                        /* File */
+                        /* ----------------------------
+                           File
+                        ---------------------------- */
 
                         return (
                           <a
@@ -877,7 +938,9 @@ export default function MessageBubble({
                   disabled:opacity-60
                 "
               >
-                <Trash2 size={14} />
+                <Trash2
+                  size={14}
+                />
 
                 {isDeleting
                   ? "Deleting..."
@@ -932,4 +995,3 @@ export default function MessageBubble({
     </div>
   );
 }
- 
