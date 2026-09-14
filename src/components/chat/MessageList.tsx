@@ -52,6 +52,15 @@ interface MessageListProps {
   onDelete?: (
     messageId: string,
   ) => boolean;
+
+  // =================================
+  // REACTION MESSAGE
+  // =================================
+
+  onReaction?: (
+    messageId: string,
+    emoji: string,
+  ) => boolean;
 }
 
 export default function MessageList({
@@ -61,6 +70,7 @@ export default function MessageList({
   onReply,
   onEdit,
   onDelete,
+  onReaction,
 }: MessageListProps) {
   // =================================
   // BOTTOM SCROLL REF
@@ -308,6 +318,14 @@ export default function MessageList({
 
                 onDelete={
                   onDelete
+                }
+
+                // -----------------------------
+                // Reaction
+                // -----------------------------
+
+                onReaction={
+                  onReaction
                 }
               />
             );

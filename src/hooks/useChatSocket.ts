@@ -22,12 +22,44 @@ import { conversationApi } from "@/src/redux/features/conversation/conversationA
 
 import type { Message } from "@/src/redux/features/message/message.types";
 
+// ==========================================
+// TYPES
+// ==========================================
+
 interface ChatSocketProps {
   conversationId: string | null;
 
   onTypingStart?: (userId: string) => void;
 
   onTypingStop?: (userId: string) => void;
+}
+
+// ==========================================
+// REACTION TYPES
+// ==========================================
+
+interface ReactionUser {
+  userId: string;
+
+  name: string;
+}
+
+interface ReactionSummary {
+  emoji: string;
+
+  count: number;
+
+  users: ReactionUser[];
+}
+
+interface MessageReactionUpdate {
+  messageId: string;
+
+  conversationId: string;
+
+  action: "added" | "removed";
+
+  reactionSummary: ReactionSummary[];
 }
 
 export default function useChatSocket({
@@ -813,10 +845,6 @@ export default function useChatSocket({
             message.conversationId,
           );
 
-        // ====================================
-        // UPDATE MESSAGE CACHE
-        // ====================================
-
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
@@ -847,23 +875,11 @@ export default function useChatSocket({
                 return;
               }
 
-              // --------------------------------
-              // Update text
-              // --------------------------------
-
               existingMessage.text =
                 message.text;
 
-              // --------------------------------
-              // Mark as edited
-              // --------------------------------
-
               existingMessage.isEdited =
                 message.isEdited;
-
-              // --------------------------------
-              // Update timestamp
-              // --------------------------------
 
               existingMessage.updatedAt =
                 message.updatedAt;
@@ -907,10 +923,6 @@ export default function useChatSocket({
           },
         );
 
-        // ====================================
-        // UPDATE MESSAGE CACHE
-        // ====================================
-
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
@@ -943,28 +955,115 @@ export default function useChatSocket({
                 return;
               }
 
-              // --------------------------------
-              // Mark as deleted
-              // --------------------------------
-
               message.isDeleted =
                 isDeleted;
 
               message.deletedAt =
                 deletedAt ?? null;
 
-              // --------------------------------
-              // Clear message content
-              // --------------------------------
-
               message.text = "";
 
               message.attachments =
                 [];
 
+              message.reactions =
+                [];
+
               console.log(
                 "DELETE UPDATE: Message marked as deleted",
                 messageId,
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    // ========================================
+    // MESSAGE REACTION UPDATE
+    // ========================================
+
+    socket.on(
+      "message:reaction:update",
+      (
+        reactionUpdate:
+          MessageReactionUpdate,
+      ) => {
+        console.log(
+          "MESSAGE REACTION UPDATE:",
+          reactionUpdate,
+        );
+
+        const {
+          messageId,
+          conversationId:
+            reactionConversationId,
+          action,
+          reactionSummary,
+        } = reactionUpdate;
+
+        if (
+          !messageId ||
+          !reactionConversationId
+        ) {
+          console.error(
+            "REACTION UPDATE: Invalid reaction payload",
+            reactionUpdate,
+          );
+
+          return;
+        }
+
+        // ====================================
+        // UPDATE MESSAGE CACHE
+        // ====================================
+
+        dispatch(
+          messageApi.util.updateQueryData(
+            "getMessages",
+            {
+              conversationId:
+                String(
+                  reactionConversationId,
+                ),
+              page: 1,
+              limit: 30,
+            },
+            (draft) => {
+              const message =
+                draft.messages.find(
+                  (item) =>
+                    String(
+                      item._id,
+                    ) ===
+                    String(
+                      messageId,
+                    ),
+                );
+
+              if (!message) {
+                console.log(
+                  "REACTION UPDATE: Message not found in cache",
+                  messageId,
+                );
+
+                return;
+              }
+
+              // =================================
+              // SAVE REACTION SUMMARY
+              // =================================
+
+              message.reactions =
+                reactionSummary;
+
+              console.log(
+                "REACTION UPDATE: Reactions updated",
+                {
+                  messageId,
+                  action,
+                  reactionSummary,
+                },
               );
             },
           ),
@@ -1383,6 +1482,71 @@ export default function useChatSocket({
     );
 
   // ==========================================
+  // TOGGLE MESSAGE REACTION REALTIME
+  // ==========================================
+
+  const toggleMessageReactionRealtime =
+    useCallback(
+      (
+        messageId: string,
+        emoji: string,
+      ) => {
+        const socket =
+          socketRef.current;
+
+        if (
+          !socket ||
+          !socket.connected
+        ) {
+          console.error(
+            "Socket is not connected. Cannot react to message.",
+          );
+
+          return false;
+        }
+
+        if (!messageId) {
+          console.error(
+            "Message ID is required for reaction.",
+          );
+
+          return false;
+        }
+
+        if (!emoji) {
+          console.error(
+            "Emoji is required for reaction.",
+          );
+
+          return false;
+        }
+
+        // ====================================
+        // SEND TO BACKEND
+        // ====================================
+
+        socket.emit(
+          "message:reaction",
+          {
+            messageId,
+            emoji,
+          },
+        );
+
+        console.log(
+          "MESSAGE REACTION EMITTED:",
+          {
+            messageId,
+            emoji,
+          },
+        );
+
+        return true;
+      },
+      [],
+    );
+
+  // ==========================================
   // RETURN
   // ==========================================
 
@@ -1399,5 +1563,7 @@ export default function useChatSocket({
     deleteMessageRealtime,
 
     editMessageRealtime,
+
+    toggleMessageReactionRealtime,
   };
 }

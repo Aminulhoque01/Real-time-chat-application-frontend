@@ -169,6 +169,12 @@ export default function ChatLayout() {
     // =================================
 
     editMessageRealtime,
+
+    // =================================
+    // REALTIME REACTION
+    // =================================
+
+    toggleMessageReactionRealtime,
   } = useChatSocket({
     conversationId:
       selectedConversationId,
@@ -276,6 +282,28 @@ export default function ChatLayout() {
     return editMessageRealtime(
       messageId,
       text,
+    );
+  };
+
+  // =========================
+  // REACTION MESSAGE
+  // =========================
+
+  const handleReactionMessage = (
+    messageId: string,
+    emoji: string,
+  ): boolean => {
+    if (!messageId) {
+      return false;
+    }
+
+    if (!emoji) {
+      return false;
+    }
+
+    return toggleMessageReactionRealtime(
+      messageId,
+      emoji,
     );
   };
 
@@ -507,6 +535,14 @@ export default function ChatLayout() {
 
         onEditMessage={
           handleEditMessage
+        }
+
+        // =================================
+        // REALTIME REACTION
+        // =================================
+
+        onReactionMessage={
+          handleReactionMessage
         }
 
         // =================================

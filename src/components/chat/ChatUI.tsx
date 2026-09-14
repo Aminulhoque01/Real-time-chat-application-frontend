@@ -75,6 +75,15 @@ interface ChatUIProps {
   ) => boolean;
 
   // =================================
+  // REACTION MESSAGE
+  // =================================
+
+  onReactionMessage?: (
+    messageId: string,
+    emoji: string,
+  ) => boolean;
+
+  // =================================
   // TYPING INDICATOR
   // =================================
 
@@ -189,6 +198,9 @@ export default function ChatUI({
 
   // EDIT
   onEditMessage,
+
+  // REACTION
+  onReactionMessage,
 
   // TYPING INDICATOR
   isTyping = false,
@@ -309,6 +321,14 @@ export default function ChatUI({
 
           onEdit={
             onEditMessage
+          }
+
+          // =================================
+          // REACTION
+          // =================================
+
+          onReaction={
+            onReactionMessage
           }
         />
       </div>
