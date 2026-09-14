@@ -163,6 +163,12 @@ export default function ChatLayout() {
     // =================================
 
     deleteMessageRealtime,
+
+    // =================================
+    // REALTIME EDIT
+    // =================================
+
+    editMessageRealtime,
   } = useChatSocket({
     conversationId:
       selectedConversationId,
@@ -249,6 +255,28 @@ export default function ChatLayout() {
 
   const handleCancelReply = () => {
     setReplyingTo(null);
+  };
+
+  // =========================
+  // EDIT MESSAGE
+  // =========================
+
+  const handleEditMessage = (
+    messageId: string,
+    text: string,
+  ): boolean => {
+    if (!messageId) {
+      return false;
+    }
+
+    if (!text.trim()) {
+      return false;
+    }
+
+    return editMessageRealtime(
+      messageId,
+      text,
+    );
   };
 
   // =========================
@@ -471,6 +499,14 @@ export default function ChatLayout() {
 
         onDeleteMessage={
           deleteMessageRealtime
+        }
+
+        // =================================
+        // REALTIME EDIT
+        // =================================
+
+        onEditMessage={
+          handleEditMessage
         }
 
         // =================================

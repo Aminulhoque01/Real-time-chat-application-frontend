@@ -66,6 +66,15 @@ interface ChatUIProps {
   ) => boolean;
 
   // =================================
+  // EDIT MESSAGE
+  // =================================
+
+  onEditMessage?: (
+    messageId: string,
+    text: string,
+  ) => boolean;
+
+  // =================================
   // TYPING INDICATOR
   // =================================
 
@@ -160,22 +169,32 @@ export default function ChatUI({
   currentUserId,
   onOpenSidebar,
 
+  // SEND
   onSendMessage,
 
+  // REPLY
   replyingTo,
   onReplyMessage,
   onCancelReply,
 
+  // TYPING
   onTypingStart,
   onTypingStop,
 
+  // READ
   markMessageAsRead,
 
+  // DELETE
   onDeleteMessage,
 
+  // EDIT
+  onEditMessage,
+
+  // TYPING INDICATOR
   isTyping = false,
   typingUserName,
 
+  // SEND LOADING
   isSending = false,
 }: ChatUIProps) {
   // =================================
@@ -228,6 +247,10 @@ export default function ChatUI({
     typingUserName?.trim() ||
     "Someone";
 
+  // =================================
+  // UI
+  // =================================
+
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-white">
       {/* =================================
@@ -251,9 +274,15 @@ export default function ChatUI({
           conversationId={
             conversation._id
           }
+
           currentUserId={
             currentUserId
           }
+
+          // =================================
+          // READ / SEEN
+          // =================================
+
           markMessageAsRead={
             markMessageAsRead
           }
@@ -272,6 +301,14 @@ export default function ChatUI({
 
           onDelete={
             onDeleteMessage
+          }
+
+          // =================================
+          // EDIT
+          // =================================
+
+          onEdit={
+            onEditMessage
           }
         />
       </div>

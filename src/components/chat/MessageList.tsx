@@ -1,27 +1,57 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import {
+  useEffect,
+  useRef,
+} from "react";
 
 import MessageBubble from "./MessageBubble";
 
 import { useAppSelector } from "@/src/redux/hooks";
 
-import { useGetMessagesQuery } from "@/src/redux/features/message/messageApi";
+import {
+  useGetMessagesQuery,
+} from "@/src/redux/features/message/messageApi";
 
 import type { Message } from "@/src/redux/features/message/message.types";
 
 interface MessageListProps {
   conversationId: string;
+
   currentUserId?: string;
 
-  markMessageAsRead?: (messageId: string) => void;
+  // =================================
+  // READ / SEEN
+  // =================================
 
-  onReply?: (message: Message) => void;
+  markMessageAsRead?: (
+    messageId: string,
+  ) => void;
 
-  onEdit?: (message: Message) => void;
+  // =================================
+  // REPLY
+  // =================================
 
-  // Realtime message delete
-  onDelete?: (messageId: string) => boolean;
+  onReply?: (
+    message: Message,
+  ) => void;
+
+  // =================================
+  // EDIT MESSAGE
+  // =================================
+
+  onEdit?: (
+    messageId: string,
+    text: string,
+  ) => boolean;
+
+  // =================================
+  // DELETE MESSAGE
+  // =================================
+
+  onDelete?: (
+    messageId: string,
+  ) => boolean;
 }
 
 export default function MessageList({
@@ -32,90 +62,154 @@ export default function MessageList({
   onEdit,
   onDelete,
 }: MessageListProps) {
-  const bottomRef = useRef<HTMLDivElement | null>(null);
+  // =================================
+  // BOTTOM SCROLL REF
+  // =================================
 
-  /**
-   * Current logged-in user
-   */
-  const currentUser = useAppSelector(
-    (state) => state.auth.user,
-  );
+  const bottomRef =
+    useRef<HTMLDivElement | null>(
+      null,
+    );
 
-  /**
-   * Get messages from RTK Query cache
-   */
+  // =================================
+  // CURRENT USER
+  // =================================
+
+  const currentUser =
+    useAppSelector(
+      (state) => state.auth.user,
+    );
+
+  // =================================
+  // GET MESSAGES
+  // =================================
+
   const {
     data,
     isLoading,
     isFetching,
     isError,
-  } = useGetMessagesQuery(
-    {
-      conversationId,
-      page: 1,
-      limit: 30,
-    },
-    {
-      skip: !conversationId,
-    },
-  );
+  } =
+    useGetMessagesQuery(
+      {
+        conversationId,
+        page: 1,
+        limit: 30,
+      },
+      {
+        skip: !conversationId,
+      },
+    );
 
-  const messages = data?.messages ?? [];
+  // =================================
+  // MESSAGE DATA
+  // =================================
 
-  /**
-   * Auto scroll to bottom when messages change
-   */
+  const messages =
+    data?.messages ?? [];
+
+  // =================================
+  // AUTO SCROLL
+  // =================================
+
   useEffect(() => {
-    if (!bottomRef.current) return;
+    if (!bottomRef.current) {
+      return;
+    }
 
     bottomRef.current.scrollIntoView({
       behavior: "smooth",
     });
-  }, [messages.length, conversationId]);
+  }, [
+    messages.length,
+    conversationId,
+  ]);
 
-  /**
-   * Mark unread messages as read
-   */
+  // =================================
+  // MARK MESSAGES AS READ
+  // =================================
+
   useEffect(() => {
-    if (!markMessageAsRead) return;
+    if (!markMessageAsRead) {
+      return;
+    }
 
-    if (!currentUser?._id) return;
+    if (!currentUser?._id) {
+      return;
+    }
 
-    messages.forEach((message) => {
-      if (message.isDeleted) return;
+    messages.forEach(
+      (message) => {
+        // -----------------------------
+        // Ignore deleted messages
+        // -----------------------------
 
-      const senderId =
-        typeof message.senderId === "string"
-          ? message.senderId
-          : message.senderId?._id;
+        if (message.isDeleted) {
+          return;
+        }
 
-      /**
-       * Don't mark our own messages as read
-       */
-      if (String(senderId) === String(currentUser._id)) {
-        return;
-      }
+        // -----------------------------
+        // Get sender ID
+        // -----------------------------
 
-      const readBy = message.readBy ?? [];
+        const senderId =
+          typeof message.senderId ===
+          "string"
+            ? message.senderId
+            : message.senderId?._id;
 
-      const alreadyRead = readBy.some(
-        (userId) =>
-          String(userId) === String(currentUser._id),
-      );
+        // -----------------------------
+        // Don't mark own messages
+        // -----------------------------
 
-      if (!alreadyRead) {
-        markMessageAsRead(String(message._id));
-      }
-    });
+        if (
+          String(senderId) ===
+          String(currentUser._id)
+        ) {
+          return;
+        }
+
+        // -----------------------------
+        // Existing readBy
+        // -----------------------------
+
+        const readBy =
+          message.readBy ?? [];
+
+        // -----------------------------
+        // Already read?
+        // -----------------------------
+
+        const alreadyRead =
+          readBy.some(
+            (userId) =>
+              String(userId) ===
+              String(
+                currentUser._id,
+              ),
+          );
+
+        // -----------------------------
+        // Mark as read
+        // -----------------------------
+
+        if (!alreadyRead) {
+          markMessageAsRead(
+            String(message._id),
+          );
+        }
+      },
+    );
   }, [
     messages,
     currentUser?._id,
     markMessageAsRead,
   ]);
 
-  /**
-   * Loading state
-   */
+  // =================================
+  // LOADING
+  // =================================
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -126,9 +220,10 @@ export default function MessageList({
     );
   }
 
-  /**
-   * Error state
-   */
+  // =================================
+  // ERROR
+  // =================================
+
   if (isError) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -139,10 +234,13 @@ export default function MessageList({
     );
   }
 
-  /**
-   * Empty conversation
-   */
-  if (messages.length === 0) {
+  // =================================
+  // EMPTY
+  // =================================
+
+  if (
+    messages.length === 0
+  ) {
     return (
       <div className="flex h-full items-center justify-center">
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -152,55 +250,91 @@ export default function MessageList({
     );
   }
 
+  // =================================
+  // MESSAGE LIST
+  // =================================
+
   return (
     <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
       <div className="flex flex-col gap-2">
-        {messages.map((message) => {
-          /**
-           * senderId can be:
-           *
-           * string
-           * OR
-           * populated user object
-           */
-          const senderId =
-            typeof message.senderId === "string"
-              ? message.senderId
-              : message.senderId?._id;
+        {messages.map(
+          (message) => {
+            // -----------------------------
+            // Get sender ID
+            // -----------------------------
 
-          /**
-           * Check whether message belongs to current user
-           */
-          const isMine =
-            String(senderId) ===
-            String(
-              currentUser?._id ?? currentUserId,
+            const senderId =
+              typeof message.senderId ===
+              "string"
+                ? message.senderId
+                : message.senderId?._id;
+
+            // -----------------------------
+            // Check own message
+            // -----------------------------
+
+            const isMine =
+              String(senderId) ===
+              String(
+                currentUser?._id ??
+                  currentUserId,
+              );
+
+            return (
+              <MessageBubble
+                key={message._id}
+                message={message}
+                isMine={isMine}
+
+                // -----------------------------
+                // Reply
+                // -----------------------------
+
+                onReply={
+                  onReply
+                }
+
+                // -----------------------------
+                // Edit
+                // -----------------------------
+
+                onEdit={
+                  onEdit
+                }
+
+                // -----------------------------
+                // Delete
+                // -----------------------------
+
+                onDelete={
+                  onDelete
+                }
+              />
             );
+          },
+        )}
 
-          return (
-            <MessageBubble
-              key={message._id}
-              message={message}
-              isMine={isMine}
-              onReply={onReply}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          );
-        })}
+        {/* =================================
+            BOTTOM SCROLL TARGET
+        ================================= */}
 
-        {/* Scroll target */}
-        <div ref={bottomRef} />
+        <div
+          ref={bottomRef}
+        />
       </div>
 
-      {/* Background fetching indicator */}
-      {isFetching && !isLoading && (
-        <div className="py-1 text-center">
-          <span className="text-xs text-gray-400">
-            Updating...
-          </span>
-        </div>
-      )}
+      {/* =================================
+          BACKGROUND FETCHING
+      ================================= */}
+
+      {isFetching &&
+        !isLoading && (
+          <div className="py-1 text-center">
+            <span className="text-xs text-gray-400">
+              Updating...
+            </span>
+          </div>
+        )}
     </div>
   );
 }

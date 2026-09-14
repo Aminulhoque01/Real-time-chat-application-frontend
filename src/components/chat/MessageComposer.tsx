@@ -1,6 +1,7 @@
 "use client";
 
-import { Message } from "@/src/redux/features/message/message.types";
+import type { Message } from "@/src/redux/features/message/message.types";
+
 import {
   Mic,
   Paperclip,
@@ -16,8 +17,6 @@ import {
   useRef,
   useState,
 } from "react";
-
- 
 
 // =========================
 // MESSAGE SEND PAYLOAD
@@ -39,12 +38,14 @@ interface MessageComposerProps {
   ) => void;
 
   onTypingStart?: () => void;
+
   onTypingStop?: () => void;
 
   disabled?: boolean;
 
   // Reply
   replyingTo?: Message | null;
+
   onCancelReply?: () => void;
 }
 
@@ -64,30 +65,43 @@ export default function MessageComposer({
   // MESSAGE
   // =========================
 
-  const [message, setMessage] = useState("");
+  const [
+    message,
+    setMessage,
+  ] = useState("");
 
   // =========================
   // ATTACHMENTS
   // =========================
 
-  const [selectedFiles, setSelectedFiles] =
-    useState<File[]>([]);
+  const [
+    selectedFiles,
+    setSelectedFiles,
+  ] = useState<File[]>([]);
 
   // =========================
   // VOICE RECORDING
   // =========================
 
-  const [isRecording, setIsRecording] =
-    useState(false);
+  const [
+    isRecording,
+    setIsRecording,
+  ] = useState(false);
 
-  const [recordingTime, setRecordingTime] =
-    useState(0);
+  const [
+    recordingTime,
+    setRecordingTime,
+  ] = useState(0);
 
-  const [audioUrl, setAudioUrl] =
-    useState<string | null>(null);
+  const [
+    audioUrl,
+    setAudioUrl,
+  ] = useState<string | null>(null);
 
-  const [audioBlob, setAudioBlob] =
-    useState<Blob | null>(null);
+  const [
+    audioBlob,
+    setAudioBlob,
+  ] = useState<Blob | null>(null);
 
   // =========================
   // REFS
@@ -106,14 +120,14 @@ export default function MessageComposer({
     useRef<Blob[]>([]);
 
   const recordingTimerRef =
-    useRef<ReturnType<typeof setInterval> | null>(
-      null,
-    );
+    useRef<ReturnType<
+      typeof setInterval
+    > | null>(null);
 
   const typingTimeoutRef =
-    useRef<ReturnType<typeof setTimeout> | null>(
-      null,
-    );
+    useRef<ReturnType<
+      typeof setTimeout
+    > | null>(null);
 
   // =========================
   // REPLY PREVIEW DATA
@@ -121,7 +135,8 @@ export default function MessageComposer({
 
   const replySenderName =
     replyingTo &&
-    typeof replyingTo.senderId !== "string"
+    typeof replyingTo.senderId !==
+      "string"
       ? replyingTo.senderId.name
       : "User";
 
@@ -142,28 +157,54 @@ export default function MessageComposer({
 
   useEffect(() => {
     return () => {
-      if (typingTimeoutRef.current) {
+      // -------------------------
+      // Typing timer
+      // -------------------------
+
+      if (
+        typingTimeoutRef.current
+      ) {
         clearTimeout(
           typingTimeoutRef.current,
         );
       }
 
-      if (recordingTimerRef.current) {
+      // -------------------------
+      // Recording timer
+      // -------------------------
+
+      if (
+        recordingTimerRef.current
+      ) {
         clearInterval(
           recordingTimerRef.current,
         );
       }
 
-      if (mediaStreamRef.current) {
+      // -------------------------
+      // Media stream
+      // -------------------------
+
+      if (
+        mediaStreamRef.current
+      ) {
         mediaStreamRef.current
           .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
+          .forEach(
+            (track) => {
+              track.stop();
+            },
+          );
       }
 
+      // -------------------------
+      // Audio URL
+      // -------------------------
+
       if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
+        URL.revokeObjectURL(
+          audioUrl,
+        );
       }
     };
   }, [audioUrl]);
@@ -176,9 +217,17 @@ export default function MessageComposer({
     const trimmedMessage =
       message.trim();
 
+    // -------------------------
+    // Disabled
+    // -------------------------
+
     if (disabled) {
       return;
     }
+
+    // -------------------------
+    // Empty message
+    // -------------------------
 
     if (
       !trimmedMessage &&
@@ -187,15 +236,26 @@ export default function MessageComposer({
       return;
     }
 
+    // -------------------------
+    // Stop typing
+    // -------------------------
+
     onTypingStop?.();
 
-    if (typingTimeoutRef.current) {
+    if (
+      typingTimeoutRef.current
+    ) {
       clearTimeout(
         typingTimeoutRef.current,
       );
 
-      typingTimeoutRef.current = null;
+      typingTimeoutRef.current =
+        null;
     }
+
+    // -------------------------
+    // Send
+    // -------------------------
 
     onSend?.({
       text:
@@ -211,7 +271,12 @@ export default function MessageComposer({
         replyingTo?._id,
     });
 
+    // -------------------------
+    // Reset
+    // -------------------------
+
     setMessage("");
+
     setSelectedFiles([]);
   };
 
@@ -227,23 +292,40 @@ export default function MessageComposer({
 
     setMessage(value);
 
+    // -------------------------
+    // Empty input
+    // -------------------------
+
     if (!value.trim()) {
       onTypingStop?.();
 
-      if (typingTimeoutRef.current) {
+      if (
+        typingTimeoutRef.current
+      ) {
         clearTimeout(
           typingTimeoutRef.current,
         );
 
-        typingTimeoutRef.current = null;
+        typingTimeoutRef.current =
+          null;
       }
 
       return;
     }
 
+    // -------------------------
+    // Start typing
+    // -------------------------
+
     onTypingStart?.();
 
-    if (typingTimeoutRef.current) {
+    // -------------------------
+    // Reset timeout
+    // -------------------------
+
+    if (
+      typingTimeoutRef.current
+    ) {
       clearTimeout(
         typingTimeoutRef.current,
       );
@@ -276,13 +358,18 @@ export default function MessageComposer({
   // ATTACHMENT
   // =========================
 
-  const handleAttachmentClick = () => {
-    if (disabled) {
-      return;
-    }
+  const handleAttachmentClick =
+    () => {
+      if (disabled) {
+        return;
+      }
 
-    fileInputRef.current?.click();
-  };
+      fileInputRef.current?.click();
+    };
+
+  // =========================
+  // FILE CHANGE
+  // =========================
 
   const handleFileChange = (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -300,17 +387,20 @@ export default function MessageComposer({
     const newFiles =
       Array.from(files);
 
-    setSelectedFiles((previous) => [
-      ...previous,
-      ...newFiles,
-    ]);
+    setSelectedFiles(
+      (previous) => [
+        ...previous,
+        ...newFiles,
+      ],
+    );
 
     console.log(
       "SELECTED FILES:",
       newFiles,
     );
 
-    // Allow selecting same file again
+    // Allow selecting
+    // the same file again
     event.target.value = "";
   };
 
@@ -321,11 +411,12 @@ export default function MessageComposer({
   const handleRemoveFile = (
     index: number,
   ) => {
-    setSelectedFiles((previous) =>
-      previous.filter(
-        (_, fileIndex) =>
-          fileIndex !== index,
-      ),
+    setSelectedFiles(
+      (previous) =>
+        previous.filter(
+          (_, fileIndex) =>
+            fileIndex !== index,
+        ),
     );
   };
 
@@ -340,13 +431,21 @@ export default function MessageComposer({
       return `${bytes} B`;
     }
 
-    if (bytes < 1024 * 1024) {
+    if (
+      bytes <
+      1024 * 1024
+    ) {
       return `${(
         bytes / 1024
       ).toFixed(1)} KB`;
     }
 
-    if (bytes < 1024 * 1024 * 1024) {
+    if (
+      bytes <
+      1024 *
+        1024 *
+        1024
+    ) {
       return `${(
         bytes /
         (1024 * 1024)
@@ -355,7 +454,9 @@ export default function MessageComposer({
 
     return `${(
       bytes /
-      (1024 * 1024 * 1024)
+      (1024 *
+        1024 *
+        1024)
     ).toFixed(1)} GB`;
   };
 
@@ -408,7 +509,9 @@ export default function MessageComposer({
     seconds: number,
   ) => {
     const minutes =
-      Math.floor(seconds / 60);
+      Math.floor(
+        seconds / 60,
+      );
 
     const remainingSeconds =
       seconds % 60;
@@ -484,13 +587,16 @@ export default function MessageComposer({
             );
 
           setAudioBlob(blob);
+
           setAudioUrl(url);
 
           stream
             .getTracks()
-            .forEach((track) => {
-              track.stop();
-            });
+            .forEach(
+              (track) => {
+                track.stop();
+              },
+            );
 
           mediaStreamRef.current =
             null;
@@ -499,6 +605,7 @@ export default function MessageComposer({
         mediaRecorder.start();
 
         setIsRecording(true);
+
         setRecordingTime(0);
 
         recordingTimerRef.current =
@@ -541,7 +648,9 @@ export default function MessageComposer({
 
       setIsRecording(false);
 
-      if (recordingTimerRef.current) {
+      if (
+        recordingTimerRef.current
+      ) {
         clearInterval(
           recordingTimerRef.current,
         );
@@ -568,12 +677,16 @@ export default function MessageComposer({
         recorder.stop();
       }
 
-      if (mediaStreamRef.current) {
+      if (
+        mediaStreamRef.current
+      ) {
         mediaStreamRef.current
           .getTracks()
-          .forEach((track) => {
-            track.stop();
-          });
+          .forEach(
+            (track) => {
+              track.stop();
+            },
+          );
 
         mediaStreamRef.current =
           null;
@@ -581,7 +694,9 @@ export default function MessageComposer({
 
       setIsRecording(false);
 
-      if (recordingTimerRef.current) {
+      if (
+        recordingTimerRef.current
+      ) {
         clearInterval(
           recordingTimerRef.current,
         );
@@ -597,7 +712,9 @@ export default function MessageComposer({
       }
 
       setAudioUrl(null);
+
       setAudioBlob(null);
+
       setRecordingTime(0);
 
       audioChunksRef.current =
@@ -619,15 +736,16 @@ export default function MessageComposer({
       return;
     }
 
-    const voiceFile = new File(
-      [audioBlob],
-      `voice-${Date.now()}.webm`,
-      {
-        type:
-          audioBlob.type ||
-          "audio/webm",
-      },
-    );
+    const voiceFile =
+      new File(
+        [audioBlob],
+        `voice-${Date.now()}.webm`,
+        {
+          type:
+            audioBlob.type ||
+            "audio/webm",
+        },
+      );
 
     console.log(
       "VOICE FILE:",
@@ -639,7 +757,10 @@ export default function MessageComposer({
     );
 
     onSend?.({
-      attachments: [voiceFile],
+      attachments: [
+        voiceFile,
+      ],
+
       replyTo:
         replyingTo?._id,
     });
@@ -651,7 +772,9 @@ export default function MessageComposer({
     }
 
     setAudioUrl(null);
+
     setAudioBlob(null);
+
     setRecordingTime(0);
 
     audioChunksRef.current =
@@ -885,9 +1008,13 @@ export default function MessageComposer({
                   text-xs
                   text-slate-500
                 "
-                title={replyPreviewText}
+                title={
+                  replyPreviewText
+                }
               >
-                {replyPreviewText}
+                {
+                  replyPreviewText
+                }
               </p>
             </div>
 
@@ -923,7 +1050,8 @@ export default function MessageComposer({
             ATTACHMENT PREVIEW
         ========================= */}
 
-        {selectedFiles.length > 0 && (
+        {selectedFiles.length >
+          0 && (
           <div
             className="
               mb-3
@@ -940,7 +1068,10 @@ export default function MessageComposer({
             "
           >
             {selectedFiles.map(
-              (file, index) => (
+              (
+                file,
+                index,
+              ) => (
                 <div
                   key={`${file.name}-${file.lastModified}-${index}`}
                   className="
@@ -958,7 +1089,9 @@ export default function MessageComposer({
                   "
                 >
                   <span className="shrink-0 text-lg">
-                    {getFileIcon(file)}
+                    {getFileIcon(
+                      file,
+                    )}
                   </span>
 
                   <div className="min-w-0 flex-1">
@@ -969,7 +1102,9 @@ export default function MessageComposer({
                         font-medium
                         text-slate-700
                       "
-                      title={file.name}
+                      title={
+                        file.name
+                      }
                     >
                       {file.name}
                     </p>
@@ -1044,7 +1179,9 @@ export default function MessageComposer({
           </button>
 
           <input
-            ref={fileInputRef}
+            ref={
+              fileInputRef
+            }
             type="file"
             multiple
             accept="
@@ -1146,7 +1283,8 @@ export default function MessageComposer({
             }
             disabled={
               disabled ||
-              selectedFiles.length > 0
+              selectedFiles.length >
+                0
             }
             className="
               flex h-10 w-10
@@ -1170,12 +1308,15 @@ export default function MessageComposer({
 
           <button
             type="button"
-            onClick={handleSend}
+            onClick={
+              handleSend
+            }
             disabled={
               disabled ||
               (
                 !message.trim() &&
-                selectedFiles.length === 0
+                selectedFiles.length ===
+                  0
               )
             }
             className="
@@ -1211,7 +1352,8 @@ export default function MessageComposer({
             sm:block
           "
         >
-          Enter to send · Shift + Enter for new line
+          Enter to send · Shift + Enter
+          for new line
         </p>
       </div>
     </div>
