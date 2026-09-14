@@ -9,6 +9,7 @@ export interface MessageUser {
 }
 
 export interface MessageAttachment {
+  fileName: string;
   type: "image" | "video" | "audio" | "file";
   url: string;
   publicId?: string;

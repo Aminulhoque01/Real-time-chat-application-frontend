@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import type { Message } from "@/src/redux/features/message/message.types";
-import { useDeleteMessageMutation } from "@/src/redux/features/message/messageApi";
+ 
 
 interface MessageBubbleProps {
   message: Message;
@@ -22,6 +22,7 @@ interface MessageBubbleProps {
 
   onReply?: (message: Message) => void;
   onEdit?: (message: Message) => void;
+   onDelete?: (messageId: string) => boolean;
 }
 
 /* ----------------------------------
@@ -138,11 +139,13 @@ export default function MessageBubble({
   isMine,
   onReply,
   onEdit,
+  onDelete,
+
 }: MessageBubbleProps) {
   /* ----------------------------------
      State
   ---------------------------------- */
-
+  
   const [showMenu, setShowMenu] =
     useState(false);
 
@@ -154,11 +157,13 @@ export default function MessageBubble({
   const menuRef =
     useRef<HTMLDivElement>(null);
 
-  const [
-    deleteMessage,
-    { isLoading: isDeleting },
-  ] = useDeleteMessageMutation();
-
+  // const [
+  //   deleteMessage,
+  //   { isLoading: isDeleting },
+  // ] = useDeleteMessageMutation();
+   
+  const [isDeleting, setIsDeleting] =
+  useState(false);
   /* ----------------------------------
      Close Menu Outside
   ---------------------------------- */
@@ -221,6 +226,30 @@ export default function MessageBubble({
      Reply
   ---------------------------------- */
 
+  const repliedMessage =
+    message.replyTo &&
+    typeof message.replyTo !== "string"
+      ? message.replyTo
+      : null;
+
+  const repliedSender =
+    repliedMessage &&
+    typeof repliedMessage.senderId !==
+      "string"
+      ? repliedMessage.senderId
+      : null;
+
+  const repliedMessageText =
+    repliedMessage?.isDeleted
+      ? "This message was deleted"
+      : repliedMessage?.text?.trim()
+        ? repliedMessage.text
+        : repliedMessage?.attachments?.length
+          ? "Attachment"
+          : repliedMessage
+            ? "Message"
+            : "";
+
   const handleReply = () => {
     setShowMenu(false);
 
@@ -241,20 +270,28 @@ export default function MessageBubble({
      Delete
   ---------------------------------- */
 
-  const handleDelete = async () => {
-    try {
-      await deleteMessage(
-        String(message._id),
-      ).unwrap();
-
-      setShowDeleteConfirm(false);
-      setShowMenu(false);
-    } catch (error) {
+    const handleDelete = () => {
+    if (!onDelete) {
       console.error(
-        "Failed to delete message:",
-        error,
+        "Delete handler is not available.",
       );
+      return;
     }
+
+    setIsDeleting(true);
+
+    const emitted = onDelete(
+      String(message._id),
+    );
+
+    if (!emitted) {
+      setIsDeleting(false);
+      return;
+    }
+
+    setShowDeleteConfirm(false);
+    setShowMenu(false);
+    setIsDeleting(false);
   };
 
   return (
@@ -348,12 +385,6 @@ export default function MessageBubble({
         >
           {/* ----------------------------------
               Three Dot Menu
-
-              Own Message:
-              Menu → Message
-
-              Other Message:
-              Message → Menu
           ---------------------------------- */}
 
           {!isDeleted && (
@@ -423,11 +454,7 @@ export default function MessageBubble({
                     }
                   `}
                 >
-                  {/* ----------------------------------
-                      Reply
-
-                      Everyone can reply
-                  ---------------------------------- */}
+                  {/* Reply */}
 
                   <button
                     type="button"
@@ -457,11 +484,7 @@ export default function MessageBubble({
                     </span>
                   </button>
 
-                  {/* ----------------------------------
-                      Edit
-
-                      Own message only
-                  ---------------------------------- */}
+                  {/* Edit */}
 
                   {isMine && (
                     <button
@@ -493,11 +516,7 @@ export default function MessageBubble({
                     </button>
                   )}
 
-                  {/* ----------------------------------
-                      Delete
-
-                      Own message only
-                  ---------------------------------- */}
+                  {/* Delete */}
 
                   {isMine && (
                     <button
@@ -575,6 +594,71 @@ export default function MessageBubble({
               </p>
             ) : (
               <div className="space-y-2">
+
+                {/* ----------------------------------
+                    QUOTED REPLY
+                ---------------------------------- */}
+
+                {repliedMessage && (
+                  <div
+                    className={`
+                      rounded-lg
+                      border-l-4
+                      px-3
+                      py-2
+                      ${
+                        isMine
+                          ? `
+                            border-white/60
+                            bg-white/10
+                          `
+                          : `
+                            border-slate-400
+                            bg-white
+                          `
+                      }
+                    `}
+                  >
+                    {/* Replied Sender */}
+
+                    <p
+                      className={`
+                        truncate
+                        text-[11px]
+                        font-semibold
+                        ${
+                          isMine
+                            ? "text-white"
+                            : "text-slate-700"
+                        }
+                      `}
+                    >
+                      {repliedSender?.name ||
+                        "User"}
+                    </p>
+
+                    {/* Replied Content */}
+
+                    <p
+                      className={`
+                        mt-0.5
+                        truncate
+                        text-xs
+                        ${
+                          isMine
+                            ? "text-white/70"
+                            : "text-slate-500"
+                        }
+                      `}
+                      title={
+                        repliedMessageText
+                      }
+                    >
+                      {repliedMessageText}
+                    </p>
+                  </div>
+                )}
+
                 {/* ----------------------------------
                     Text
                 ---------------------------------- */}

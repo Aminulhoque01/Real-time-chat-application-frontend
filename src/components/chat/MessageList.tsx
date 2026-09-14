@@ -1,40 +1,53 @@
 "use client";
 
-import {
-  useEffect,
-  useRef,
-} from "react";
+import { useEffect, useRef } from "react";
 
 import MessageBubble from "./MessageBubble";
 
 import { useAppSelector } from "@/src/redux/hooks";
 
-import {
-  useGetMessagesQuery,
-} from "@/src/redux/features/message/messageApi";
+import { useGetMessagesQuery } from "@/src/redux/features/message/messageApi";
+
+import type { Message } from "@/src/redux/features/message/message.types";
 
 interface MessageListProps {
   conversationId: string;
-
   currentUserId?: string;
 
-  markMessageAsRead?: (
-    messageId: string,
-  ) => void;
+  markMessageAsRead?: (messageId: string) => void;
+
+  onReply?: (message: Message) => void;
+
+  onEdit?: (message: Message) => void;
+
+  // Realtime message delete
+  onDelete?: (messageId: string) => boolean;
 }
 
 export default function MessageList({
   conversationId,
   currentUserId,
   markMessageAsRead,
+  onReply,
+  onEdit,
+  onDelete,
 }: MessageListProps) {
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+
+  /**
+   * Current logged-in user
+   */
   const currentUser = useAppSelector(
     (state) => state.auth.user,
   );
 
+  /**
+   * Get messages from RTK Query cache
+   */
   const {
     data,
     isLoading,
+    isFetching,
     isError,
   } = useGetMessagesQuery(
     {
@@ -43,295 +56,151 @@ export default function MessageList({
       limit: 30,
     },
     {
-      refetchOnMountOrArgChange: true,
+      skip: !conversationId,
     },
   );
 
   const messages = data?.messages ?? [];
 
-  const containerRef =
-    useRef<HTMLDivElement | null>(null);
-
-  const bottomRef =
-    useRef<HTMLDivElement | null>(null);
-
-  const previousMessageCount =
-    useRef(0);
-
   /**
-   * Keeps track of messages that we
-   * have already emitted as read.
-   *
-   * This prevents duplicate:
-   *
-   * message:read
-   *
-   * socket events.
+   * Auto scroll to bottom when messages change
    */
-  const markedReadMessageIds =
-    useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!bottomRef.current) return;
 
-  /**
-   * Check whether the user is close
-   * enough to the bottom of the chat.
-   */
-  const isNearBottom = () => {
-    const container =
-      containerRef.current;
-
-    if (!container) {
-      return true;
-    }
-
-    const distanceFromBottom =
-      container.scrollHeight -
-      container.scrollTop -
-      container.clientHeight;
-
-    return distanceFromBottom < 150;
-  };
-
-  /**
-   * Scroll chat to bottom.
-   */
-  const scrollToBottom = (
-    behavior: ScrollBehavior = "auto",
-  ) => {
-    bottomRef.current?.scrollIntoView({
-      behavior,
-      block: "end",
+    bottomRef.current.scrollIntoView({
+      behavior: "smooth",
     });
-  };
+  }, [messages.length, conversationId]);
 
   /**
-   * Reset read tracking when the
-   * selected conversation changes.
+   * Mark unread messages as read
    */
   useEffect(() => {
-    markedReadMessageIds.current.clear();
-  }, [conversationId]);
+    if (!markMessageAsRead) return;
 
-  /**
-   * Mark incoming unread messages as read.
-   */
-  useEffect(() => {
-    if (
-      isLoading ||
-      !currentUserId ||
-      !markMessageAsRead
-    ) {
-      return;
-    }
-
-    if (!conversationId) {
-      return;
-    }
-
-   
+    if (!currentUser?._id) return;
 
     messages.forEach((message) => {
+      if (message.isDeleted) return;
+
       const senderId =
         typeof message.senderId === "string"
           ? message.senderId
           : message.senderId?._id;
 
-      if (!senderId) {
+      /**
+       * Don't mark our own messages as read
+       */
+      if (String(senderId) === String(currentUser._id)) {
         return;
       }
 
- 
-      if (
-        String(senderId) ===
-        String(currentUserId)
-      ) {
-        return;
-      }
+      const readBy = message.readBy ?? [];
 
-      const alreadyRead =
-        message.readBy?.some(
-          (userId) =>
-            String(userId) ===
-            String(currentUserId),
-        ) ?? false;
- 
-
-      if (alreadyRead) {
-        markedReadMessageIds.current.add(
-          message._id,
-        );
-
-        return;
-      }
-
-      if (
-        markedReadMessageIds.current.has(
-          message._id,
-        )
-      ) {
-        return;
-      }
-
-      markedReadMessageIds.current.add(
-        message._id,
+      const alreadyRead = readBy.some(
+        (userId) =>
+          String(userId) === String(currentUser._id),
       );
 
-      console.log(
-        "MARKING MESSAGE AS READ:",
-        message._id,
-      );
-
-      markMessageAsRead(message._id);
+      if (!alreadyRead) {
+        markMessageAsRead(String(message._id));
+      }
     });
   }, [
-    conversationId,
     messages,
-    isLoading,
-    currentUserId,
+    currentUser?._id,
     markMessageAsRead,
   ]);
-  
-    
 
   /**
-   * Initial conversation scroll.
-   */
-  useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-
-    previousMessageCount.current =
-      messages.length;
-
-    requestAnimationFrame(() => {
-      scrollToBottom("auto");
-    });
-  }, [
-    conversationId,
-    isLoading,
-  ]);
-
-  /**
-   * Scroll when new messages arrive.
-   */
-  useEffect(() => {
-    if (isLoading) {
-      return;
-    }
-
-    const currentCount =
-      messages.length;
-
-    const previousCount =
-      previousMessageCount.current;
-
-    if (
-      currentCount >
-      previousCount
-    ) {
-      const shouldScroll =
-        isNearBottom();
-
-      if (shouldScroll) {
-        requestAnimationFrame(() => {
-          scrollToBottom("smooth");
-        });
-      }
-    }
-
-    previousMessageCount.current =
-      currentCount;
-  }, [
-    messages.length,
-    isLoading,
-  ]);
-
-  /**
-   * Loading state.
+   * Loading state
    */
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
-        <div
-          className="
-            h-7 w-7
-            animate-spin
-            rounded-full
-            border-2
-            border-slate-200
-            border-t-slate-700
-          "
-        />
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Loading messages...
+        </p>
       </div>
     );
   }
 
   /**
-   * Error state.
+   * Error state
    */
   if (isError) {
     return (
       <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-red-400">
-          Failed to load messages
+        <p className="text-sm text-red-500">
+          Failed to load messages.
+        </p>
+      </div>
+    );
+  }
+
+  /**
+   * Empty conversation
+   */
+  if (messages.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          No messages yet.
         </p>
       </div>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="
-        h-full
-        overflow-y-auto
-        px-4
-        py-5
-        sm:px-6
-      "
-    >
-      <div
-        className="
-          mx-auto
-          flex
-          max-w-4xl
-          flex-col
-          gap-3
-        "
-      >
-        {messages.length === 0 ? (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <p className="text-sm text-slate-400">
-              No messages yet
-            </p>
-          </div>
-        ) : (
-          messages.map((message) => {
-            const senderId =
-              typeof message.senderId ===
-              "string"
-                ? message.senderId
-                : message.senderId?._id;
+    <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
+      <div className="flex flex-col gap-2">
+        {messages.map((message) => {
+          /**
+           * senderId can be:
+           *
+           * string
+           * OR
+           * populated user object
+           */
+          const senderId =
+            typeof message.senderId === "string"
+              ? message.senderId
+              : message.senderId?._id;
 
-            const isMine =
-              String(senderId) ===
-              String(currentUser?._id);
-
-            return (
-              <MessageBubble
-                key={message._id}
-                message={message}
-                isMine={isMine}
-              />
+          /**
+           * Check whether message belongs to current user
+           */
+          const isMine =
+            String(senderId) ===
+            String(
+              currentUser?._id ?? currentUserId,
             );
-          })
-        )}
 
-        <div
-          ref={bottomRef}
-          className="h-px w-full"
-        />
+          return (
+            <MessageBubble
+              key={message._id}
+              message={message}
+              isMine={isMine}
+              onReply={onReply}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          );
+        })}
+
+        {/* Scroll target */}
+        <div ref={bottomRef} />
       </div>
+
+      {/* Background fetching indicator */}
+      {isFetching && !isLoading && (
+        <div className="py-1 text-center">
+          <span className="text-xs text-gray-400">
+            Updating...
+          </span>
+        </div>
+      )}
     </div>
   );
 }

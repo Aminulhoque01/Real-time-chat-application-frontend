@@ -1,5 +1,6 @@
 "use client";
 
+import { Message } from "@/src/redux/features/message/message.types";
 import {
   Mic,
   Paperclip,
@@ -16,10 +17,21 @@ import {
   useState,
 } from "react";
 
+ 
+
+// =========================
+// MESSAGE SEND PAYLOAD
+// =========================
+
 export interface MessageSendPayload {
   text?: string;
   attachments?: File[];
+  replyTo?: string;
 }
+
+// =========================
+// PROPS
+// =========================
 
 interface MessageComposerProps {
   onSend?: (
@@ -28,14 +40,25 @@ interface MessageComposerProps {
 
   onTypingStart?: () => void;
   onTypingStop?: () => void;
+
   disabled?: boolean;
+
+  // Reply
+  replyingTo?: Message | null;
+  onCancelReply?: () => void;
 }
+
+// =========================
+// COMPONENT
+// =========================
 
 export default function MessageComposer({
   onSend,
   onTypingStart,
   onTypingStop,
   disabled = false,
+  replyingTo,
+  onCancelReply,
 }: MessageComposerProps) {
   // =========================
   // MESSAGE
@@ -91,6 +114,27 @@ export default function MessageComposer({
     useRef<ReturnType<typeof setTimeout> | null>(
       null,
     );
+
+  // =========================
+  // REPLY PREVIEW DATA
+  // =========================
+
+  const replySenderName =
+    replyingTo &&
+    typeof replyingTo.senderId !== "string"
+      ? replyingTo.senderId.name
+      : "User";
+
+  const replyPreviewText =
+    replyingTo?.isDeleted
+      ? "This message was deleted"
+      : replyingTo?.text?.trim()
+        ? replyingTo.text
+        : replyingTo?.attachments?.length
+          ? "Attachment"
+          : replyingTo
+            ? "Message"
+            : "";
 
   // =========================
   // CLEANUP
@@ -162,6 +206,9 @@ export default function MessageComposer({
         selectedFiles.length > 0
           ? selectedFiles
           : undefined,
+
+      replyTo:
+        replyingTo?._id,
     });
 
     setMessage("");
@@ -593,6 +640,8 @@ export default function MessageComposer({
 
     onSend?.({
       attachments: [voiceFile],
+      replyTo:
+        replyingTo?._id,
     });
 
     if (audioUrl) {
@@ -787,7 +836,92 @@ export default function MessageComposer({
     <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
       <div className="mx-auto max-w-4xl">
 
-        {/* ATTACHMENT PREVIEW */}
+        {/* =========================
+            REPLY PREVIEW
+        ========================= */}
+
+        {replyingTo && (
+          <div
+            className="
+              mb-3
+              flex
+              items-start
+              gap-3
+              rounded-xl
+              border
+              border-slate-200
+              bg-slate-50
+              px-3
+              py-2
+            "
+          >
+            <div
+              className="
+                mt-0.5
+                h-9
+                w-1
+                shrink-0
+                rounded-full
+                bg-slate-900
+              "
+            />
+
+            <div className="min-w-0 flex-1">
+              <p
+                className="
+                  text-xs
+                  font-semibold
+                  text-slate-700
+                "
+              >
+                Replying to{" "}
+                {replySenderName}
+              </p>
+
+              <p
+                className="
+                  mt-0.5
+                  truncate
+                  text-xs
+                  text-slate-500
+                "
+                title={replyPreviewText}
+              >
+                {replyPreviewText}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={
+                onCancelReply
+              }
+              disabled={disabled}
+              className="
+                flex
+                h-7
+                w-7
+                shrink-0
+                items-center
+                justify-center
+                rounded-full
+                text-slate-400
+                transition
+                hover:bg-slate-200
+                hover:text-slate-700
+                disabled:cursor-not-allowed
+                disabled:opacity-50
+              "
+              title="Cancel reply"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* =========================
+            ATTACHMENT PREVIEW
+        ========================= */}
 
         {selectedFiles.length > 0 && (
           <div
@@ -877,7 +1011,9 @@ export default function MessageComposer({
           </div>
         )}
 
-        {/* COMPOSER */}
+        {/* =========================
+            COMPOSER
+        ========================= */}
 
         <div className="flex items-end gap-2">
 
@@ -1061,6 +1197,10 @@ export default function MessageComposer({
             <Send size={18} />
           </button>
         </div>
+
+        {/* =========================
+            HELP TEXT
+        ========================= */}
 
         <p
           className="

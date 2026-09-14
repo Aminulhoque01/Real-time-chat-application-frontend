@@ -23,6 +23,8 @@ import {
   useSendMessageMutation,
 } from "@/src/redux/features/message/messageApi";
 
+import type { Message } from "@/src/redux/features/message/message.types";
+
 import useChatSocket from "@/src/hooks/useChatSocket";
 
 export default function ChatLayout() {
@@ -58,6 +60,15 @@ export default function ChatLayout() {
   ] = useState<string | null>(null);
 
   // =========================
+  // REPLY MESSAGE
+  // =========================
+
+  const [
+    replyingTo,
+    setReplyingTo,
+  ] = useState<Message | null>(null);
+
+  // =========================
   // SIDEBAR
   // =========================
 
@@ -91,8 +102,8 @@ export default function ChatLayout() {
   const selectedConversation =
     conversations.find(
       (conversation) =>
-        conversation._id ===
-        selectedConversationId,
+        String(conversation._id) ===
+        String(selectedConversationId),
     ) ?? null;
 
   // =========================
@@ -102,7 +113,8 @@ export default function ChatLayout() {
   const typingUser =
     selectedConversation?.participants.find(
       (participant) =>
-        participant._id === typingUserId,
+        String(participant._id) ===
+        String(typingUserId),
     );
 
   const typingUserName =
@@ -126,7 +138,10 @@ export default function ChatLayout() {
   const handleTypingStop =
     useCallback((userId: string) => {
       setTypingUserId((currentUserId) => {
-        if (currentUserId === userId) {
+        if (
+          String(currentUserId) ===
+          String(userId)
+        ) {
           return null;
         }
 
@@ -142,6 +157,12 @@ export default function ChatLayout() {
     sendTypingStart,
     sendTypingStop,
     markMessageAsRead,
+
+    // =================================
+    // REALTIME DELETE
+    // =================================
+
+    deleteMessageRealtime,
   } = useChatSocket({
     conversationId:
       selectedConversationId,
@@ -160,8 +181,17 @@ export default function ChatLayout() {
   const handleSelectConversation = (
     conversationId: string,
   ) => {
-    // Clear previous typing user
+    // =================================
+    // CLEAR TYPING USER
+    // =================================
+
     setTypingUserId(null);
+
+    // =================================
+    // CLEAR REPLY
+    // =================================
+
+    setReplyingTo(null);
 
     // =================================
     // CLEAR UNREAD COUNT IMMEDIATELY
@@ -204,6 +234,24 @@ export default function ChatLayout() {
   };
 
   // =========================
+  // REPLY TO MESSAGE
+  // =========================
+
+  const handleReplyMessage = (
+    message: Message,
+  ) => {
+    setReplyingTo(message);
+  };
+
+  // =========================
+  // CANCEL REPLY
+  // =========================
+
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+  };
+
+  // =========================
   // OPEN SIDEBAR
   // =========================
 
@@ -236,6 +284,9 @@ export default function ChatLayout() {
     const attachments =
       payload.attachments;
 
+    const replyTo =
+      payload.replyTo;
+
     // =================================
     // VALIDATE
     // =================================
@@ -257,7 +308,11 @@ export default function ChatLayout() {
       {
         conversationId:
           selectedConversationId,
+
         text,
+
+        replyTo,
+
         attachments,
       },
     );
@@ -285,7 +340,11 @@ export default function ChatLayout() {
           conversationId:
             selectedConversationId,
 
-          text: text || undefined,
+          text:
+            text || undefined,
+
+          replyTo:
+            replyTo || undefined,
 
           attachments:
             attachments &&
@@ -298,6 +357,12 @@ export default function ChatLayout() {
         "MESSAGE SENT SUCCESSFULLY:",
         result,
       );
+
+      // =================================
+      // CLEAR REPLY AFTER SUCCESS
+      // =================================
+
+      setReplyingTo(null);
     } catch (error) {
       console.error(
         "MESSAGE SEND ERROR:",
@@ -312,7 +377,8 @@ export default function ChatLayout() {
 
   const isTyping =
     typingUserId !== null &&
-    typingUserId !== user?._id;
+    String(typingUserId) !==
+      String(user?._id);
 
   // =========================
   // UI
@@ -345,7 +411,9 @@ export default function ChatLayout() {
           aria-label="Close sidebar"
           onClick={handleCloseSidebar}
           className="
-            absolute inset-0 z-30
+            absolute
+            inset-0
+            z-30
             bg-black/20
             lg:hidden
           "
@@ -360,25 +428,85 @@ export default function ChatLayout() {
         conversation={
           selectedConversation
         }
-        currentUserId={user?._id}
+
+        currentUserId={
+          user?._id
+        }
+
         onOpenSidebar={
           handleOpenSidebar
         }
+
+        // =================================
+        // SEND MESSAGE
+        // =================================
+
         onSendMessage={
           handleSendMessage
         }
+
+        // =================================
+        // TYPING
+        // =================================
+
         onTypingStart={
           sendTypingStart
         }
+
         onTypingStop={
           sendTypingStop
         }
+
+        // =================================
+        // READ / SEEN
+        // =================================
+
         markMessageAsRead={
           markMessageAsRead
         }
-        isTyping={isTyping}
+
+        // =================================
+        // REALTIME DELETE
+        // =================================
+
+        onDeleteMessage={
+          deleteMessageRealtime
+        }
+
+        // =================================
+        // TYPING INDICATOR
+        // =================================
+
+        isTyping={
+          isTyping
+        }
+
         typingUserName={
           typingUserName
+        }
+
+        // =================================
+        // REPLY
+        // =================================
+
+        replyingTo={
+          replyingTo
+        }
+
+        onReplyMessage={
+          handleReplyMessage
+        }
+
+        onCancelReply={
+          handleCancelReply
+        }
+
+        // =================================
+        // SEND LOADING
+        // =================================
+
+        isSending={
+          isSending
         }
       />
     </div>

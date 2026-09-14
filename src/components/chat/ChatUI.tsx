@@ -13,28 +13,76 @@ import type {
   ConversationUser,
 } from "@/src/redux/features/conversation/conversation.types";
 
+import type { Message } from "@/src/redux/features/message/message.types";
+
 interface ChatUIProps {
   conversation: Conversation | null;
   currentUserId?: string;
 
   onOpenSidebar: () => void;
 
-  // Text + attachments + voice
+  // =================================
+  // SEND MESSAGE
+  // =================================
+
   onSendMessage?: (
     payload: MessageSendPayload,
   ) => void;
 
+  // =================================
+  // REPLY
+  // =================================
+
+  replyingTo?: Message | null;
+
+  onReplyMessage?: (
+    message: Message,
+  ) => void;
+
+  onCancelReply?: () => void;
+
+  // =================================
+  // TYPING
+  // =================================
+
   onTypingStart?: () => void;
+
   onTypingStop?: () => void;
 
-  // Read / Seen
+  // =================================
+  // READ / SEEN
+  // =================================
+
   markMessageAsRead?: (
     messageId: string,
   ) => void;
 
+  // =================================
+  // DELETE MESSAGE
+  // =================================
+
+  onDeleteMessage?: (
+    messageId: string,
+  ) => boolean;
+
+  // =================================
+  // TYPING INDICATOR
+  // =================================
+
   isTyping?: boolean;
+
   typingUserName?: string;
+
+  // =================================
+  // SEND LOADING
+  // =================================
+
+  isSending?: boolean;
 }
+
+// =================================
+// GET OTHER PARTICIPANT
+// =================================
 
 const getOtherParticipant = (
   conversation: Conversation,
@@ -47,11 +95,16 @@ const getOtherParticipant = (
   const otherParticipant =
     conversation.participants.find(
       (participant) =>
-        participant._id !== currentUserId,
+        String(participant._id) !==
+        String(currentUserId),
     );
 
   return otherParticipant ?? null;
 };
+
+// =================================
+// GET CONVERSATION NAME
+// =================================
 
 const getConversationName = (
   conversation: Conversation,
@@ -77,6 +130,10 @@ const getConversationName = (
   );
 };
 
+// =================================
+// GET CONVERSATION AVATAR
+// =================================
+
 const getConversationAvatar = (
   conversation: Conversation,
   currentUserId?: string,
@@ -94,21 +151,36 @@ const getConversationAvatar = (
   return otherUser?.avatar || null;
 };
 
+// =================================
+// CHAT UI
+// =================================
+
 export default function ChatUI({
   conversation,
   currentUserId,
   onOpenSidebar,
+
   onSendMessage,
+
+  replyingTo,
+  onReplyMessage,
+  onCancelReply,
+
   onTypingStart,
   onTypingStop,
+
   markMessageAsRead,
+
+  onDeleteMessage,
+
   isTyping = false,
   typingUserName,
+
+  isSending = false,
 }: ChatUIProps) {
-  console.log(
-    "CHAT UI markMessageAsRead:",
-    markMessageAsRead,
-  );
+  // =================================
+  // NO CONVERSATION
+  // =================================
 
   if (!conversation) {
     return (
@@ -118,11 +190,19 @@ export default function ChatUI({
     );
   }
 
+  // =================================
+  // OTHER USER
+  // =================================
+
   const otherUser =
     getOtherParticipant(
       conversation,
       currentUserId,
     );
+
+  // =================================
+  // CONVERSATION NAME
+  // =================================
 
   const conversationName =
     getConversationName(
@@ -130,17 +210,30 @@ export default function ChatUI({
       currentUserId,
     );
 
+  // =================================
+  // CONVERSATION AVATAR
+  // =================================
+
   const conversationAvatar =
     getConversationAvatar(
       conversation,
       currentUserId,
     );
 
+  // =================================
+  // TYPING NAME
+  // =================================
+
   const displayTypingName =
-    typingUserName?.trim() || "Someone";
+    typingUserName?.trim() ||
+    "Someone";
 
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-white">
+      {/* =================================
+          CHAT HEADER
+      ================================= */}
+
       <ChatHeader
         conversation={conversation}
         name={conversationName}
@@ -149,15 +242,43 @@ export default function ChatUI({
         onOpenSidebar={onOpenSidebar}
       />
 
+      {/* =================================
+          MESSAGE LIST
+      ================================= */}
+
       <div className="min-h-0 flex-1 overflow-hidden">
         <MessageList
-          conversationId={conversation._id}
-          currentUserId={currentUserId}
+          conversationId={
+            conversation._id
+          }
+          currentUserId={
+            currentUserId
+          }
           markMessageAsRead={
             markMessageAsRead
           }
+
+          // =================================
+          // REPLY
+          // =================================
+
+          onReply={
+            onReplyMessage
+          }
+
+          // =================================
+          // DELETE
+          // =================================
+
+          onDelete={
+            onDeleteMessage
+          }
         />
       </div>
+
+      {/* =================================
+          TYPING INDICATOR
+      ================================= */}
 
       <div
         className={`
@@ -179,10 +300,42 @@ export default function ChatUI({
         )}
       </div>
 
+      {/* =================================
+          MESSAGE COMPOSER
+      ================================= */}
+
       <MessageComposer
-        onSend={onSendMessage}
-        onTypingStart={onTypingStart}
-        onTypingStop={onTypingStop}
+        onSend={
+          onSendMessage
+        }
+
+        onTypingStart={
+          onTypingStart
+        }
+
+        onTypingStop={
+          onTypingStop
+        }
+
+        // =================================
+        // REPLY STATE
+        // =================================
+
+        replyingTo={
+          replyingTo
+        }
+
+        onCancelReply={
+          onCancelReply
+        }
+
+        // =================================
+        // SEND LOADING
+        // =================================
+
+        disabled={
+          isSending
+        }
       />
     </main>
   );
