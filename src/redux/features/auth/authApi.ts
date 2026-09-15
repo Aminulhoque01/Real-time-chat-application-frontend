@@ -1,6 +1,5 @@
-
-
 import { baseApi } from "../../api/baseApi";
+
 import type {
   AuthRequest,
   AuthResponse,
@@ -15,14 +14,16 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body,
       }),
+
       invalidatesTags: ["Auth", "User"],
     }),
 
     getMyProfile: builder.query<User, void>({
       query: () => ({
-        url: "/users/me",
+        url: "/auth/me",
         method: "GET",
       }),
+
       providesTags: ["User"],
 
       transformResponse: (

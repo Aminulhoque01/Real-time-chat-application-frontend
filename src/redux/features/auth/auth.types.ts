@@ -6,6 +6,7 @@ export interface User {
   bio?: string;
   isOnline?: boolean;
   lastSeen?: string;
+  blockedUsers: string[];
 }
 
 export interface AuthRequest {
