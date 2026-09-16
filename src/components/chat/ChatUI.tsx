@@ -1,3 +1,404 @@
+// "use client";
+
+// import ChatHeader from "./ChatHeader";
+// import MessageComposer, {
+//   type MessageSendPayload,
+// } from "./MessageComposer";
+// import MessageList from "./MessageList";
+// import TypingIndicator from "./TypingIndicator";
+// import EmptyChat from "./EmptyChat";
+
+// import type {
+//   Conversation,
+//   ConversationUser,
+// } from "@/src/redux/features/conversation/conversation.types";
+
+// import type { Message } from "@/src/redux/features/message/message.types";
+
+// interface ChatUIProps {
+//   conversation: Conversation | null;
+//   currentUserId?: string;
+
+//   onOpenSidebar: () => void;
+
+//   // =================================
+//   // SEND MESSAGE
+//   // =================================
+
+//   onSendMessage?: (
+//     payload: MessageSendPayload,
+//   ) => void;
+
+//   // =================================
+//   // REPLY
+//   // =================================
+
+//   replyingTo?: Message | null;
+
+//   onReplyMessage?: (
+//     message: Message,
+//   ) => void;
+
+//   onCancelReply?: () => void;
+
+//   // =================================
+//   // TYPING
+//   // =================================
+
+//   onTypingStart?: () => void;
+
+//   onTypingStop?: () => void;
+
+//   // =================================
+//   // READ / SEEN
+//   // =================================
+
+//   markMessageAsRead?: (
+//     messageId: string,
+//   ) => void;
+
+//   // =================================
+//   // DELETE MESSAGE
+//   // =================================
+
+//   onDeleteMessage?: (
+//     messageId: string,
+//   ) => boolean;
+
+//   // =================================
+//   // EDIT MESSAGE
+//   // =================================
+
+//   onEditMessage?: (
+//     messageId: string,
+//     text: string,
+//   ) => boolean;
+
+//   // =================================
+//   // REACTION MESSAGE
+//   // =================================
+
+//   onReactionMessage?: (
+//     messageId: string,
+//     emoji: string,
+//   ) => boolean;
+
+//   // =================================
+//   // TYPING INDICATOR
+//   // =================================
+
+//   isTyping?: boolean;
+
+//   typingUserName?: string;
+
+//   // =================================
+//   // SEND LOADING
+//   // =================================
+
+//   isSending?: boolean;
+// }
+
+// // =================================
+// // GET OTHER PARTICIPANT
+// // =================================
+
+// const getOtherParticipant = (
+//   conversation: Conversation,
+//   currentUserId?: string,
+// ): ConversationUser | null => {
+//   if (conversation.type === "group") {
+//     return null;
+//   }
+
+//   const otherParticipant =
+//     conversation.participants.find(
+//       (participant) =>
+//         String(participant._id) !==
+//         String(currentUserId),
+//     );
+
+//   return otherParticipant ?? null;
+// };
+
+// // =================================
+// // GET CONVERSATION NAME
+// // =================================
+
+// const getConversationName = (
+//   conversation: Conversation,
+//   currentUserId?: string,
+// ): string => {
+//   if (conversation.type === "group") {
+//     return (
+//       conversation.name?.trim() ||
+//       "Group"
+//     );
+//   }
+
+//   const otherUser =
+//     getOtherParticipant(
+//       conversation,
+//       currentUserId,
+//     );
+
+//   return (
+//     otherUser?.name?.trim() ||
+//     otherUser?.phone ||
+//     "Unknown"
+//   );
+// };
+
+// // =================================
+// // GET CONVERSATION AVATAR
+// // =================================
+
+// const getConversationAvatar = (
+//   conversation: Conversation,
+//   currentUserId?: string,
+// ): string | null => {
+//   if (conversation.type === "group") {
+//     return null;
+//   }
+
+//   const otherUser =
+//     getOtherParticipant(
+//       conversation,
+//       currentUserId,
+//     );
+
+//   return otherUser?.avatar || null;
+// };
+
+// // =================================
+// // CHAT UI
+// // =================================
+
+// export default function ChatUI({
+//   conversation,
+//   currentUserId,
+//   onOpenSidebar,
+
+//   // SEND
+//   onSendMessage,
+
+//   // REPLY
+//   replyingTo,
+//   onReplyMessage,
+//   onCancelReply,
+
+//   // TYPING
+//   onTypingStart,
+//   onTypingStop,
+
+//   // READ
+//   markMessageAsRead,
+
+//   // DELETE
+//   onDeleteMessage,
+
+//   // EDIT
+//   onEditMessage,
+
+//   // REACTION
+//   onReactionMessage,
+
+//   // TYPING INDICATOR
+//   isTyping = false,
+//   typingUserName,
+
+//   // SEND LOADING
+//   isSending = false,
+// }: ChatUIProps) {
+//   // =================================
+//   // NO CONVERSATION
+//   // =================================
+
+//   if (!conversation) {
+//     return (
+//       <main className="flex min-h-0 flex-1 flex-col bg-white">
+//         <EmptyChat />
+//       </main>
+//     );
+//   }
+
+//   // =================================
+//   // OTHER USER
+//   // =================================
+
+//   const otherUser =
+//     getOtherParticipant(
+//       conversation,
+//       currentUserId,
+//     );
+
+//   // =================================
+//   // CONVERSATION NAME
+//   // =================================
+
+//   const conversationName =
+//     getConversationName(
+//       conversation,
+//       currentUserId,
+//     );
+
+//   // =================================
+//   // CONVERSATION AVATAR
+//   // =================================
+
+//   const conversationAvatar =
+//     getConversationAvatar(
+//       conversation,
+//       currentUserId,
+//     );
+
+//   // =================================
+//   // TYPING NAME
+//   // =================================
+
+//   const displayTypingName =
+//     typingUserName?.trim() ||
+//     "Someone";
+
+//   // =================================
+//   // UI
+//   // =================================
+
+//   return (
+//     <main className="flex min-h-0 flex-1 flex-col bg-white">
+//       {/* =================================
+//           CHAT HEADER
+//       ================================= */}
+
+//       <ChatHeader
+//         conversation={conversation}
+//         name={conversationName}
+//         avatar={conversationAvatar}
+//         otherUser={otherUser}
+//         onOpenSidebar={onOpenSidebar}
+//       />
+
+//       {/* =================================
+//           MESSAGE LIST
+//       ================================= */}
+
+//       <div className="min-h-0 flex-1 overflow-hidden">
+//         <MessageList
+//           conversationId={
+//             conversation._id
+//           }
+
+//           currentUserId={
+//             currentUserId
+//           }
+
+//           // =================================
+//           // READ / SEEN
+//           // =================================
+
+//           markMessageAsRead={
+//             markMessageAsRead
+//           }
+
+//           // =================================
+//           // REPLY
+//           // =================================
+
+//           onReply={
+//             onReplyMessage
+//           }
+
+//           // =================================
+//           // DELETE
+//           // =================================
+
+//           onDelete={
+//             onDeleteMessage
+//           }
+
+//           // =================================
+//           // EDIT
+//           // =================================
+
+//           onEdit={
+//             onEditMessage
+//           }
+
+//           // =================================
+//           // REACTION
+//           // =================================
+
+//           onReaction={
+//             onReactionMessage
+//           }
+//         />
+//       </div>
+
+//       {/* =================================
+//           TYPING INDICATOR
+//       ================================= */}
+
+//       <div
+//         className={`
+//           min-h-[32px]
+//           shrink-0
+//           transition-all
+//           duration-200
+//           ${
+//             isTyping
+//               ? "opacity-100"
+//               : "opacity-0"
+//           }
+//         `}
+//       >
+//         {isTyping && (
+//           <TypingIndicator
+//             name={displayTypingName}
+//           />
+//         )}
+//       </div>
+
+//       {/* =================================
+//           MESSAGE COMPOSER
+//       ================================= */}
+
+//       <MessageComposer
+//         onSend={
+//           onSendMessage
+//         }
+
+//         onTypingStart={
+//           onTypingStart
+//         }
+
+//         onTypingStop={
+//           onTypingStop
+//         }
+
+//         // =================================
+//         // REPLY STATE
+//         // =================================
+
+//         replyingTo={
+//           replyingTo
+//         }
+
+//         onCancelReply={
+//           onCancelReply
+//         }
+
+//         // =================================
+//         // SEND LOADING
+//         // =================================
+
+//         disabled={
+//           isSending
+//         }
+//       />
+//     </main>
+//   );
+// }
+
+
 "use client";
 
 import ChatHeader from "./ChatHeader";
@@ -21,18 +422,15 @@ interface ChatUIProps {
 
   onOpenSidebar: () => void;
 
-  // =================================
-  // SEND MESSAGE
-  // =================================
+  // PROFILE
+  onOpenProfile: () => void;
 
+  // SEND MESSAGE
   onSendMessage?: (
     payload: MessageSendPayload,
   ) => void;
 
-  // =================================
   // REPLY
-  // =================================
-
   replyingTo?: Message | null;
 
   onReplyMessage?: (
@@ -41,60 +439,39 @@ interface ChatUIProps {
 
   onCancelReply?: () => void;
 
-  // =================================
   // TYPING
-  // =================================
-
   onTypingStart?: () => void;
 
   onTypingStop?: () => void;
 
-  // =================================
-  // READ / SEEN
-  // =================================
-
+  // READ
   markMessageAsRead?: (
     messageId: string,
   ) => void;
 
-  // =================================
-  // DELETE MESSAGE
-  // =================================
-
+  // DELETE
   onDeleteMessage?: (
     messageId: string,
   ) => boolean;
 
-  // =================================
-  // EDIT MESSAGE
-  // =================================
-
+  // EDIT
   onEditMessage?: (
     messageId: string,
     text: string,
   ) => boolean;
 
-  // =================================
-  // REACTION MESSAGE
-  // =================================
-
+  // REACTION
   onReactionMessage?: (
     messageId: string,
     emoji: string,
   ) => boolean;
 
-  // =================================
   // TYPING INDICATOR
-  // =================================
-
   isTyping?: boolean;
 
   typingUserName?: string;
 
-  // =================================
   // SEND LOADING
-  // =================================
-
   isSending?: boolean;
 }
 
@@ -177,6 +554,7 @@ export default function ChatUI({
   conversation,
   currentUserId,
   onOpenSidebar,
+  onOpenProfile,
 
   // SEND
   onSendMessage,
@@ -202,11 +580,11 @@ export default function ChatUI({
   // REACTION
   onReactionMessage,
 
-  // TYPING INDICATOR
+  // TYPING
   isTyping = false,
   typingUserName,
 
-  // SEND LOADING
+  // SEND
   isSending = false,
 }: ChatUIProps) {
   // =================================
@@ -265,78 +643,44 @@ export default function ChatUI({
 
   return (
     <main className="flex min-h-0 flex-1 flex-col bg-white">
-      {/* =================================
-          CHAT HEADER
-      ================================= */}
-
+      {/* CHAT HEADER */}
       <ChatHeader
         conversation={conversation}
         name={conversationName}
         avatar={conversationAvatar}
         otherUser={otherUser}
         onOpenSidebar={onOpenSidebar}
+        onOpenProfile={onOpenProfile}
       />
 
-      {/* =================================
-          MESSAGE LIST
-      ================================= */}
-
+      {/* MESSAGE LIST */}
       <div className="min-h-0 flex-1 overflow-hidden">
         <MessageList
           conversationId={
             conversation._id
           }
-
           currentUserId={
             currentUserId
           }
-
-          // =================================
-          // READ / SEEN
-          // =================================
-
           markMessageAsRead={
             markMessageAsRead
           }
-
-          // =================================
-          // REPLY
-          // =================================
-
           onReply={
             onReplyMessage
           }
-
-          // =================================
-          // DELETE
-          // =================================
-
           onDelete={
             onDeleteMessage
           }
-
-          // =================================
-          // EDIT
-          // =================================
-
           onEdit={
             onEditMessage
           }
-
-          // =================================
-          // REACTION
-          // =================================
-
           onReaction={
             onReactionMessage
           }
         />
       </div>
 
-      {/* =================================
-          TYPING INDICATOR
-      ================================= */}
-
+      {/* TYPING INDICATOR */}
       <div
         className={`
           min-h-[32px]
@@ -357,39 +701,23 @@ export default function ChatUI({
         )}
       </div>
 
-      {/* =================================
-          MESSAGE COMPOSER
-      ================================= */}
-
+      {/* MESSAGE COMPOSER */}
       <MessageComposer
         onSend={
           onSendMessage
         }
-
         onTypingStart={
           onTypingStart
         }
-
         onTypingStop={
           onTypingStop
         }
-
-        // =================================
-        // REPLY STATE
-        // =================================
-
         replyingTo={
           replyingTo
         }
-
         onCancelReply={
           onCancelReply
         }
-
-        // =================================
-        // SEND LOADING
-        // =================================
-
         disabled={
           isSending
         }

@@ -14,8 +14,12 @@ import { useGetConversationsQuery } from "@/src/redux/features/conversation/conv
 interface ChatSidebarProps {
   selectedConversationId: string | null;
   onSelectConversation: (conversationId: string) => void;
+
   isOpen: boolean;
   onClose: () => void;
+
+  onOpenProfile: () => void;
+    
 }
 
 const formatTime = (date?: string) => {
@@ -30,8 +34,7 @@ const formatTime = (date?: string) => {
   const now = new Date();
 
   const isToday =
-    messageDate.toDateString() ===
-    now.toDateString();
+    messageDate.toDateString() === now.toDateString();
 
   if (isToday) {
     return messageDate.toLocaleTimeString([], {
@@ -78,11 +81,10 @@ const getConversationName = (
     return conversation.name || "Group";
   }
 
-  const otherUser =
-    getOtherParticipant(
-      conversation,
-      currentUserId,
-    );
+  const otherUser = getOtherParticipant(
+    conversation,
+    currentUserId,
+  );
 
   return (
     otherUser?.name ||
@@ -103,11 +105,10 @@ const getConversationAvatar = (
     return null;
   }
 
-  const otherUser =
-    getOtherParticipant(
-      conversation,
-      currentUserId,
-    );
+  const otherUser = getOtherParticipant(
+    conversation,
+    currentUserId,
+  );
 
   return otherUser?.avatar || null;
 };
@@ -126,12 +127,14 @@ const getLastMessagePreview = (
     return "No messages yet";
   }
 
-  // Text message
+  /* Text message */
+
   if (lastMessage.text?.trim()) {
     return lastMessage.text;
   }
 
-  // Attachments
+  /* Attachments */
+
   const attachments =
     lastMessage.attachments;
 
@@ -165,6 +168,7 @@ export default function ChatSidebar({
   onSelectConversation,
   isOpen,
   onClose,
+  onOpenProfile,
 }: ChatSidebarProps) {
   const user = useAppSelector(
     (state) => state.auth.user,
@@ -177,6 +181,10 @@ export default function ChatSidebar({
   } = useGetConversationsQuery();
 
   const [search, setSearch] = useState("");
+
+  /* ----------------------------------
+     Filter Conversations
+  ---------------------------------- */
 
   const filteredConversations =
     useMemo(() => {
@@ -212,13 +220,46 @@ export default function ChatSidebar({
       user?._id,
     ]);
 
+  /* ----------------------------------
+     Select Conversation
+  ---------------------------------- */
+
+  const handleSelectConversation = (
+    conversationId: string,
+  ) => {
+    onSelectConversation(conversationId);
+
+    /*
+     * Close sidebar on mobile.
+     * Desktop sidebar remains visible.
+     */
+    onClose();
+  };
+
+  /* ----------------------------------
+     Current User
+  ---------------------------------- */
+
+  const currentUserName =
+    user?.name?.trim() ||
+    user?.phone ||
+    "User";
+
+  const currentUserInitial =
+    currentUserName
+      .charAt(0)
+      .toUpperCase();
+
   return (
     <aside
       className={`
         absolute z-40 flex h-full w-[320px]
         flex-col border-r border-slate-200
         bg-white transition-transform duration-300
-        lg:relative lg:translate-x-0
+
+        lg:relative
+        lg:translate-x-0
+
         ${
           isOpen
             ? "translate-x-0"
@@ -226,27 +267,57 @@ export default function ChatSidebar({
         }
       `}
     >
-      {/* ================= HEADER ================= */}
+      {/* ==================================================
+          HEADER
+      ================================================== */}
 
-      <div className="border-b border-slate-100 px-5 pb-4 pt-6">
-        <div className="mb-5 flex items-center justify-between">
+      <div
+        className="
+          border-b border-slate-100
+          px-5 pb-4 pt-6
+        "
+      >
+        {/* Header Title */}
+
+        <div
+          className="
+            mb-5 flex
+            items-center justify-between
+          "
+        >
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            <h1
+              className="
+                text-xl font-bold
+                tracking-tight text-slate-900
+              "
+            >
               Messages
             </h1>
 
-            <p className="mt-1 text-xs text-slate-400">
+            <p
+              className="
+                mt-1 text-xs
+                text-slate-400
+              "
+            >
               {conversations.length} conversations
             </p>
           </div>
 
+          {/* New Conversation */}
+
           <button
             type="button"
             className="
-              flex h-9 w-9 items-center
-              justify-center rounded-xl
-              bg-slate-100 text-slate-500
-              transition hover:bg-slate-200
+              flex h-9 w-9
+              items-center justify-center
+              rounded-xl
+              bg-slate-100
+              text-slate-500
+              transition
+              hover:bg-slate-200
+              hover:text-slate-700
             "
             title="New conversation"
           >
@@ -254,30 +325,40 @@ export default function ChatSidebar({
           </button>
         </div>
 
-        {/* ================= SEARCH ================= */}
+        {/* ==================================================
+            SEARCH
+        ================================================== */}
 
         <div className="relative">
           <Search
             size={17}
             className="
-              absolute left-3 top-1/2
-              -translate-y-1/2 text-slate-400
+              absolute left-3
+              top-1/2
+              -translate-y-1/2
+              text-slate-400
             "
           />
 
           <input
+            type="text"
             value={search}
             onChange={(event) =>
               setSearch(event.target.value)
             }
             placeholder="Search conversations..."
             className="
-              h-11 w-full rounded-xl
+              h-11 w-full
+              rounded-xl
               border border-slate-200
-              bg-slate-50 pl-10 pr-4
+              bg-slate-50
+              pl-10 pr-4
               text-sm text-slate-700
-              outline-none transition
+              outline-none
+              transition
+
               placeholder:text-slate-400
+
               focus:border-slate-300
               focus:bg-white
               focus:ring-2
@@ -287,10 +368,20 @@ export default function ChatSidebar({
         </div>
       </div>
 
-      {/* ================= CONVERSATIONS ================= */}
+      {/* ==================================================
+          CONVERSATIONS
+      ================================================== */}
 
-      <div className="flex-1 overflow-y-auto px-3 py-3">
-        {/* Loading */}
+      <div
+        className="
+          flex-1
+          overflow-y-auto
+          px-3 py-3
+        "
+      >
+        {/* ----------------------------------
+            Loading
+        ---------------------------------- */}
 
         {isLoading && (
           <div className="space-y-2">
@@ -304,11 +395,34 @@ export default function ChatSidebar({
                     rounded-xl p-3
                   "
                 >
-                  <div className="h-12 w-12 rounded-full bg-slate-200" />
+                  <div
+                    className="
+                      h-12 w-12
+                      rounded-full
+                      bg-slate-200
+                    "
+                  />
 
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-28 rounded bg-slate-200" />
-                    <div className="h-3 w-40 rounded bg-slate-100" />
+                  <div
+                    className="
+                      flex-1 space-y-2
+                    "
+                  >
+                    <div
+                      className="
+                        h-3 w-28
+                        rounded
+                        bg-slate-200
+                      "
+                    />
+
+                    <div
+                      className="
+                        h-3 w-40
+                        rounded
+                        bg-slate-100
+                      "
+                    />
                   </div>
                 </div>
               ),
@@ -316,32 +430,66 @@ export default function ChatSidebar({
           </div>
         )}
 
-        {/* Error */}
+        {/* ----------------------------------
+            Error
+        ---------------------------------- */}
 
         {isError && (
-          <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
-            <p className="text-sm font-medium text-red-600">
+          <div
+            className="
+              rounded-xl
+              border border-red-100
+              bg-red-50
+              p-4
+              text-center
+            "
+          >
+            <p
+              className="
+                text-sm
+                font-medium
+                text-red-600
+              "
+            >
               Failed to load conversations
             </p>
 
-            <p className="mt-1 text-xs text-red-400">
+            <p
+              className="
+                mt-1
+                text-xs
+                text-red-400
+              "
+            >
               Please try again.
             </p>
           </div>
         )}
 
-        {/* Empty */}
+        {/* ----------------------------------
+            Empty
+        ---------------------------------- */}
 
         {!isLoading &&
           !isError &&
           filteredConversations.length ===
             0 && (
-            <div className="flex h-64 flex-col items-center justify-center text-center">
+            <div
+              className="
+                flex h-64
+                flex-col
+                items-center
+                justify-center
+                text-center
+              "
+            >
               <div
                 className="
-                  mb-3 flex h-14 w-14
+                  mb-3
+                  flex h-14 w-14
                   items-center justify-center
-                  rounded-2xl bg-slate-100
+                  rounded-2xl
+                  bg-slate-100
                 "
               >
                 <MessageCircle
@@ -350,17 +498,33 @@ export default function ChatSidebar({
                 />
               </div>
 
-              <p className="text-sm font-semibold text-slate-700">
+              <p
+                className="
+                  text-sm
+                  font-semibold
+                  text-slate-700
+                "
+              >
                 No conversations
               </p>
 
-              <p className="mt-1 max-w-[220px] text-xs text-slate-400">
-                Start a new conversation to begin chatting.
+              <p
+                className="
+                  mt-1
+                  max-w-[220px]
+                  text-xs
+                  text-slate-400
+                "
+              >
+                Start a new conversation
+                to begin chatting.
               </p>
             </div>
           )}
 
-        {/* Conversation List */}
+        {/* ----------------------------------
+            Conversation List
+        ---------------------------------- */}
 
         <div className="space-y-1">
           {filteredConversations.map(
@@ -392,20 +556,27 @@ export default function ChatSidebar({
                   conversation,
                 );
 
+              const unreadCount =
+                conversation.unreadCount || 0;
+
               return (
                 <button
                   key={conversation._id}
                   type="button"
                   onClick={() =>
-                    onSelectConversation(
+                    handleSelectConversation(
                       conversation._id,
                     )
                   }
                   className={`
-                    group flex w-full
+                    group
+                    flex w-full
                     items-center gap-3
-                    rounded-xl p-3 text-left
+                    rounded-xl
+                    p-3
+                    text-left
                     transition
+
                     ${
                       isActive
                         ? "bg-slate-100"
@@ -413,25 +584,37 @@ export default function ChatSidebar({
                     }
                   `}
                 >
-                  {/* Avatar */}
+                  {/* ====================================
+                      AVATAR
+                  ==================================== */}
 
-                  <div className="relative shrink-0">
+                  <div
+                    className="
+                      relative
+                      shrink-0
+                    "
+                  >
                     {avatar ? (
                       <img
                         src={avatar}
                         alt={name}
                         className="
                           h-12 w-12
-                          rounded-full object-cover
+                          rounded-full
+                          object-cover
                         "
                       />
                     ) : (
                       <div
                         className="
                           flex h-12 w-12
-                          items-center justify-center
-                          rounded-full bg-slate-900
-                          text-sm font-bold text-white
+                          items-center
+                          justify-center
+                          rounded-full
+                          bg-slate-900
+                          text-sm
+                          font-bold
+                          text-white
                         "
                       >
                         {name
@@ -440,32 +623,53 @@ export default function ChatSidebar({
                       </div>
                     )}
 
-                    {/* Online */}
+                    {/* Online Indicator */}
 
                     {conversation.type ===
                       "direct" &&
                       otherUser?.isOnline && (
                         <span
                           className="
-                            absolute bottom-0 right-0
-                            h-3 w-3 rounded-full
-                            border-2 border-white
+                            absolute
+                            bottom-0
+                            right-0
+                            h-3 w-3
+                            rounded-full
+                            border-2
+                            border-white
                             bg-emerald-500
                           "
                         />
                       )}
                   </div>
 
-                  {/* Conversation Info */}
+                  {/* ====================================
+                      CONVERSATION INFO
+                  ==================================== */}
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
+                  <div
+                    className="
+                      min-w-0
+                      flex-1
+                    "
+                  >
+                    {/* Name + Time */}
+
+                    <div
+                      className="
+                        flex
+                        items-center
+                        justify-between
+                        gap-2
+                      "
+                    >
                       <p
                         className={`
-                          truncate text-sm
+                          truncate
+                          text-sm
+
                           ${
-                            conversation.unreadCount >
-                            0
+                            unreadCount > 0
                               ? "font-bold text-slate-900"
                               : "font-semibold text-slate-700"
                           }
@@ -474,7 +678,13 @@ export default function ChatSidebar({
                         {name}
                       </p>
 
-                      <span className="shrink-0 text-[10px] text-slate-400">
+                      <span
+                        className="
+                          shrink-0
+                          text-[10px]
+                          text-slate-400
+                        "
+                      >
                         {formatTime(
                           conversation
                             .lastMessage
@@ -483,13 +693,24 @@ export default function ChatSidebar({
                       </span>
                     </div>
 
-                    <div className="mt-1 flex items-center justify-between gap-2">
+                    {/* Last Message + Unread */}
+
+                    <div
+                      className="
+                        mt-1
+                        flex
+                        items-center
+                        justify-between
+                        gap-2
+                      "
+                    >
                       <p
                         className={`
-                          truncate text-xs
+                          truncate
+                          text-xs
+
                           ${
-                            conversation.unreadCount >
-                            0
+                            unreadCount > 0
                               ? "font-medium text-slate-600"
                               : "text-slate-400"
                           }
@@ -498,23 +719,28 @@ export default function ChatSidebar({
                         {lastMessagePreview}
                       </p>
 
-                      {/* Unread Count */}
+                      {/* Unread Badge */}
 
-                      {conversation.unreadCount >
-                        0 && (
+                      {unreadCount > 0 && (
                         <span
                           className="
-                            flex h-5 min-w-5
-                            items-center justify-center
-                            rounded-full bg-slate-900
-                            px-1.5 text-[10px]
-                            font-bold text-white
+                            flex
+                            h-5
+                            min-w-5
+                            shrink-0
+                            items-center
+                            justify-center
+                            rounded-full
+                            bg-slate-900
+                            px-1.5
+                            text-[10px]
+                            font-bold
+                            text-white
                           "
                         >
-                          {conversation.unreadCount >
-                          99
+                          {unreadCount > 99
                             ? "99+"
-                            : conversation.unreadCount}
+                            : unreadCount}
                         </span>
                       )}
                     </div>
@@ -526,61 +752,137 @@ export default function ChatSidebar({
         </div>
       </div>
 
-      {/* ================= CURRENT USER ================= */}
+      {/* ==================================================
+          CURRENT USER / PROFILE
+      ================================================== */}
 
-      <div className="border-t border-slate-100 p-3">
+      <div
+        className="
+          border-t
+          border-slate-100
+          p-3
+        "
+      >
         <div
           className="
-            flex items-center gap-3
-            rounded-xl bg-slate-50
-            p-3 transition hover:bg-slate-100
+            flex
+            items-center
+            gap-3
+            rounded-xl
+            bg-slate-50
+            p-3
+            transition
+            hover:bg-slate-100
           "
         >
-          {user?.avatar ? (
-            <img
-              src={user.avatar}
-              alt={user.name}
-              className="
-                h-11 w-11
-                rounded-full object-cover
-              "
-            />
-          ) : (
+          {/* Profile Click Area */}
+
+          <button
+            type="button"
+            onClick={onOpenProfile}
+            className="
+              flex
+              min-w-0
+              flex-1
+              items-center
+              gap-3
+              rounded-lg
+              text-left
+              outline-none
+            "
+          >
+            {/* Avatar */}
+
+            <div className="shrink-0">
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt={currentUserName}
+                  className="
+                    h-11 w-11
+                    rounded-full
+                    object-cover
+                  "
+                />
+              ) : (
+                <div
+                  className="
+                    flex h-11 w-11
+                    items-center
+                    justify-center
+                    rounded-full
+                    bg-slate-900
+                    text-sm
+                    font-bold
+                    text-white
+                  "
+                >
+                  {currentUserInitial}
+                </div>
+              )}
+            </div>
+
+            {/* User Info */}
+
             <div
               className="
-                flex h-11 w-11
-                items-center justify-center
-                rounded-full bg-slate-900
-                text-sm font-bold text-white
+                min-w-0
+                flex-1
               "
             >
-              {user?.name
-                ?.charAt(0)
-                .toUpperCase() || "U"}
+              <p
+                className="
+                  truncate
+                  text-sm
+                  font-semibold
+                  text-slate-800
+                "
+              >
+                {currentUserName}
+              </p>
+
+              <div
+                className="
+                  mt-0.5
+                  flex
+                  items-center
+                  gap-1.5
+                "
+              >
+                <span
+                  className="
+                    h-1.5 w-1.5
+                    rounded-full
+                    bg-emerald-500
+                  "
+                />
+
+                <span
+                  className="
+                    text-[11px]
+                    text-slate-400
+                  "
+                >
+                  Online
+                </span>
+              </div>
             </div>
-          )}
+          </button>
 
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-800">
-              {user?.name || "User"}
-            </p>
-
-            <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-
-              <span className="text-[11px] text-slate-400">
-                Online
-              </span>
-            </div>
-          </div>
+          {/* More Options */}
 
           <button
             type="button"
             className="
-              flex h-8 w-8
-              items-center justify-center
-              rounded-lg text-slate-400
-              transition hover:bg-white
+              flex
+              h-8 w-8
+              shrink-0
+              items-center
+              justify-center
+              rounded-lg
+              text-slate-400
+              transition
+              hover:bg-white
               hover:text-slate-700
             "
             title="More options"

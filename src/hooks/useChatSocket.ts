@@ -202,6 +202,83 @@ export default function useChatSocket({
     );
 
   // ==========================================
+  // MANUAL DISCONNECT
+  // ==========================================
+
+  const disconnectSocket =
+    useCallback(() => {
+      const socket =
+        socketRef.current;
+
+      if (!socket) {
+        console.log(
+          "Socket already disconnected.",
+        );
+
+        return;
+      }
+
+      console.log(
+        "Manually disconnecting socket:",
+        socket.id,
+      );
+
+      // ========================================
+      // LEAVE CURRENT CONVERSATION
+      // ========================================
+
+      if (
+        joinedConversationRef.current &&
+        socket.connected
+      ) {
+        socket.emit(
+          "conversation:leave",
+          {
+            conversationId:
+              joinedConversationRef.current,
+          },
+        );
+
+        console.log(
+          "Leaving conversation before logout:",
+          joinedConversationRef.current,
+        );
+      }
+
+      // ========================================
+      // REMOVE SOCKET LISTENERS
+      // ========================================
+
+      socket.removeAllListeners();
+
+      socket.io.removeAllListeners();
+
+      // ========================================
+      // DISCONNECT
+      // ========================================
+
+      socket.disconnect();
+
+      // ========================================
+      // CLEAR REFS
+      // ========================================
+
+      socketRef.current = null;
+
+      joinedConversationRef.current =
+        null;
+
+      conversationIdRef.current =
+        null;
+
+      pendingReadMessageIds.current.clear();
+
+      console.log(
+        "Socket manually disconnected successfully.",
+      );
+    }, []);
+
+  // ==========================================
   // SOCKET CONNECTION
   // ==========================================
 
@@ -1050,10 +1127,6 @@ export default function useChatSocket({
                 return;
               }
 
-              // =================================
-              // SAVE REACTION SUMMARY
-              // =================================
-
               message.reactions =
                 reactionSummary;
 
@@ -1521,10 +1594,6 @@ export default function useChatSocket({
           return false;
         }
 
-        // ====================================
-        // SEND TO BACKEND
-        // ====================================
-
         socket.emit(
           "message:reaction",
           {
@@ -1565,5 +1634,8 @@ export default function useChatSocket({
     editMessageRealtime,
 
     toggleMessageReactionRealtime,
+
+    // NEW
+    disconnectSocket,
   };
 }

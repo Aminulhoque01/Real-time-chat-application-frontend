@@ -18,6 +18,7 @@ interface ChatHeaderProps {
   avatar: string | null;
   otherUser: ConversationUser | null;
   onOpenSidebar: () => void;
+  onOpenProfile: () => void;
 }
 
 const formatLastSeen = (date?: string) => {
@@ -41,6 +42,7 @@ export default function ChatHeader({
   avatar,
   otherUser,
   onOpenSidebar,
+  onOpenProfile,
 }: ChatHeaderProps) {
   return (
     <header
@@ -51,10 +53,9 @@ export default function ChatHeader({
         px-4 sm:px-6
       "
     >
-      {/* Left */}
+      {/* LEFT */}
       <div className="flex min-w-0 items-center gap-3">
-
-        {/* Mobile sidebar button */}
+        {/* Mobile sidebar */}
         <button
           type="button"
           onClick={onOpenSidebar}
@@ -63,86 +64,103 @@ export default function ChatHeader({
             items-center justify-center
             rounded-xl bg-slate-100
             text-slate-600
+            transition
+            hover:bg-slate-200
             lg:hidden
           "
         >
           <Menu size={19} />
         </button>
 
-        {/* Avatar */}
-        <div className="relative shrink-0">
-          {avatar ? (
-            <img
-              src={avatar}
-              alt={name}
-              className="
-                h-11 w-11
-                rounded-full
-                object-cover
-              "
-            />
-          ) : (
-            <div
-              className="
-                flex h-11 w-11
-                items-center justify-center
-                rounded-full
-                bg-slate-900
-                text-sm font-bold
-                text-white
-              "
-            >
-              {name.charAt(0).toUpperCase()}
-            </div>
-          )}
-
-          {/* Online indicator */}
-          {conversation.type === "direct" &&
-            otherUser?.isOnline && (
-              <span
+        {/* PROFILE BUTTON */}
+        <button
+          type="button"
+          onClick={onOpenProfile}
+          className="
+            flex min-w-0
+            items-center gap-3
+            rounded-xl
+            text-left
+            transition
+            hover:bg-slate-50
+          "
+        >
+          {/* AVATAR */}
+          <div className="relative shrink-0">
+            {avatar ? (
+              <img
+                src={avatar}
+                alt={name}
                 className="
-                  absolute bottom-0 right-0
-                  h-3 w-3
+                  h-11 w-11
                   rounded-full
-                  border-2 border-white
-                  bg-emerald-500
+                  object-cover
                 "
               />
+            ) : (
+              <div
+                className="
+                  flex h-11 w-11
+                  items-center justify-center
+                  rounded-full
+                  bg-slate-900
+                  text-sm font-bold
+                  text-white
+                "
+              >
+                {name.charAt(0).toUpperCase()}
+              </div>
             )}
-        </div>
 
-        {/* User information */}
-        <div className="min-w-0">
-          <h2
-            className="
-              truncate text-sm font-bold
-              text-slate-800
-              sm:text-base
-            "
-          >
-            {name}
-          </h2>
+            {/* ONLINE */}
+            {conversation.type === "direct" &&
+              otherUser?.isOnline && (
+                <span
+                  className="
+                    absolute bottom-0 right-0
+                    h-3 w-3
+                    rounded-full
+                    border-2 border-white
+                    bg-emerald-500
+                  "
+                />
+              )}
+          </div>
 
-          <p
-            className="
-              mt-0.5 truncate
-              text-[11px] text-slate-400
-              sm:text-xs
-            "
-          >
-            {conversation.type === "group"
-              ? `${conversation.participants.length} members`
-              : otherUser?.isOnline
-                ? "Active now"
-                : formatLastSeen(otherUser?.lastSeen)}
-          </p>
-        </div>
+          {/* USER INFO */}
+          <div className="min-w-0">
+            <h2
+              className="
+                truncate text-sm font-bold
+                text-slate-800
+                sm:text-base
+              "
+            >
+              {name}
+            </h2>
+
+            <p
+              className="
+                mt-0.5 truncate
+                text-[11px] text-slate-400
+                sm:text-xs
+              "
+            >
+              {conversation.type === "group"
+                ? `${conversation.participants.length} members`
+                : otherUser?.isOnline
+                  ? "Active now"
+                  : formatLastSeen(
+                      otherUser?.lastSeen,
+                    )}
+            </p>
+          </div>
+        </button>
       </div>
 
-      {/* Right actions */}
+      {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-1">
-
-        {/* Phone */}
+        {/* PHONE */}
         <button
           type="button"
           className="
@@ -159,7 +177,7 @@ export default function ChatHeader({
           <Phone size={18} />
         </button>
 
-        {/* Video */}
+        {/* VIDEO */}
         <button
           type="button"
           className="
@@ -176,7 +194,7 @@ export default function ChatHeader({
           <Video size={19} />
         </button>
 
-        {/* More */}
+        {/* MORE */}
         <button
           type="button"
           className="
