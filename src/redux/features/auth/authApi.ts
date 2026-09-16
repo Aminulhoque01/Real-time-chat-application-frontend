@@ -1,20 +1,46 @@
 import { baseApi } from "../../api/baseApi";
 
-import type { AuthRequest, AuthResponse, User } from "./auth.types";
+import type {
+AuthRequest,
+AuthResponse,
+User,
+} from "./auth.types";
 
-export const authApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
-    login: builder.mutation<AuthResponse, AuthRequest>({
-      query: (body) => ({
-        url: "/auth/login",
-        method: "POST",
-        body,
-      }),
+export interface BlockStatus {
+isBlocked: boolean;
+blockedByMe: boolean;
+blockedByOther: boolean;
+canUnblock: boolean;
+}
 
-      invalidatesTags: ["Auth", "User"],
-    }),
+export const authApi =
+baseApi.injectEndpoints({
+endpoints: (builder) => ({
+// =========================
+// Login
+// =========================
+login: builder.mutation<
+AuthResponse,
+AuthRequest
+>({
+query: (body) => ({
+url: "/auth/login",
+method: "POST",
+body,
+}),
 
-    getMyProfile: builder.query<User, void>({
+
+    invalidatesTags: [
+      "Auth",
+      "User",
+    ],
+  }),
+
+  // =========================
+  // My Profile
+  // =========================
+  getMyProfile:
+    builder.query<User, void>({
       query: () => ({
         url: "/auth/me",
         method: "GET",
@@ -31,13 +57,21 @@ export const authApi = baseApi.injectEndpoints({
       },
     }),
 
-    getUserProfile: builder.query<User, string>({
+  // =========================
+  // Get User Profile
+  // =========================
+  getUserProfile:
+    builder.query<User, string>({
       query: (userId) => ({
         url: `/user/${userId}`,
         method: "GET",
       }),
 
-      providesTags: (result, error, userId) => [
+      providesTags: (
+        result,
+        error,
+        userId,
+      ) => [
         {
           type: "User",
           id: userId,
@@ -51,7 +85,11 @@ export const authApi = baseApi.injectEndpoints({
       }) => response.data,
     }),
 
-    updateMyProfile: builder.mutation<
+  // =========================
+  // Update My Profile
+  // =========================
+  updateMyProfile:
+    builder.mutation<
       User,
       {
         name: string;
@@ -73,7 +111,14 @@ export const authApi = baseApi.injectEndpoints({
       }) => response.data,
     }),
 
-    updateMyAvatar: builder.mutation<User, FormData>({
+  // =========================
+  // Update My Avatar
+  // =========================
+  updateMyAvatar:
+    builder.mutation<
+      User,
+      FormData
+    >({
       query: (formData) => ({
         url: "/user/me/avatar",
         method: "PATCH",
@@ -89,27 +134,62 @@ export const authApi = baseApi.injectEndpoints({
       }) => response.data,
     }),
 
-    getBlockStatus: builder.query<{ isBlocked: boolean }, string>({
+  // =========================
+  // Get Block Status
+  // GET /api/block/status/:id
+  // =========================
+  getBlockStatus:
+    builder.query<
+      BlockStatus,
+      string
+    >({
       query: (userId) => ({
-        url: `/user/${userId}/block-status`,
+        url: `/block/status/${userId}`,
         method: "GET",
       }),
 
+      providesTags: (
+        result,
+        error,
+        userId,
+      ) => [
+        {
+          type: "Block",
+          id: userId,
+        },
+      ],
+
       transformResponse: (response: {
         success: boolean;
-        data: {
-          isBlocked: boolean;
-        };
-      }) => response.data,
+        data: BlockStatus;
+      }) => {
+        return response.data;
+      },
     }),
 
-    blockUser: builder.mutation<void, string>({
+  // =========================
+  // Block User
+  // POST /api/block/:id
+  // =========================
+  blockUser:
+    builder.mutation<
+      void,
+      string
+    >({
       query: (userId) => ({
-        url: `/user/${userId}/block`,
+        url: `/block/${userId}`,
         method: "POST",
       }),
 
-      invalidatesTags: (result, error, userId) => [
+      invalidatesTags: (
+        result,
+        error,
+        userId,
+      ) => [
+        {
+          type: "Block",
+          id: userId,
+        },
         {
           type: "User",
           id: userId,
@@ -117,26 +197,47 @@ export const authApi = baseApi.injectEndpoints({
       ],
     }),
 
-    unblockUser: builder.mutation<void, string>({
+  // =========================
+  // Unblock User
+  // DELETE /api/block/:id
+  // =========================
+  unblockUser:
+    builder.mutation<
+      void,
+      string
+    >({
       query: (userId) => ({
-        url: `/user/${userId}/block`,
+        url: `/block/${userId}`,
         method: "DELETE",
       }),
 
-      invalidatesTags: (result, error, userId) => [
+      invalidatesTags: (
+        result,
+        error,
+        userId,
+      ) => [
+        {
+          type: "Block",
+          id: userId,
+        },
         {
           type: "User",
           id: userId,
         },
       ],
     }),
-  }),
+}),
+
+
 });
 
-export const { useLoginMutation, useGetMyProfileQuery, useGetUserProfileQuery,
-  useGetBlockStatusQuery,
-  useBlockUserMutation,
-  useUnblockUserMutation,
-  useUpdateMyAvatarMutation,
- useUpdateMyProfileMutation
+export const {
+useLoginMutation,
+useGetMyProfileQuery,
+useGetUserProfileQuery,
+useGetBlockStatusQuery,
+useBlockUserMutation,
+useUnblockUserMutation,
+useUpdateMyAvatarMutation,
+useUpdateMyProfileMutation,
 } = authApi;

@@ -37,6 +37,7 @@ export const baseApi = createApi({
     "User",
     "Conversation",
     "Message",
+    "Block",
   ],
 
   endpoints: () => ({}),

@@ -32,6 +32,20 @@ interface ChatSocketProps {
   onTypingStart?: (userId: string) => void;
 
   onTypingStop?: (userId: string) => void;
+
+  // ========================================
+  // BLOCK / UNBLOCK CALLBACKS
+  // ========================================
+
+  onUserBlocked?: (data: {
+    blockerId: string;
+    blockedId: string;
+  }) => void;
+
+  onUserUnblocked?: (data: {
+    blockerId: string;
+    blockedId: string;
+  }) => void;
 }
 
 // ==========================================
@@ -62,10 +76,32 @@ interface MessageReactionUpdate {
   reactionSummary: ReactionSummary[];
 }
 
+// ==========================================
+// BLOCK TYPES
+// ==========================================
+
+interface UserBlockedEvent {
+  blockerId: string;
+
+  blockedId: string;
+}
+
+interface UserUnblockedEvent {
+  blockerId: string;
+
+  blockedId: string;
+}
+
+// ==========================================
+// HOOK
+// ==========================================
+
 export default function useChatSocket({
   conversationId,
   onTypingStart,
   onTypingStop,
+  onUserBlocked,
+  onUserUnblocked,
 }: ChatSocketProps) {
   const dispatch = useAppDispatch();
 
@@ -115,6 +151,26 @@ export default function useChatSocket({
       ((userId: string) => void) | undefined
     >(onTypingStop);
 
+  // ==========================================
+  // BLOCK CALLBACK REFS
+  // ==========================================
+
+  const onUserBlockedRef =
+    useRef<
+      ((data: UserBlockedEvent) => void) |
+        undefined
+    >(onUserBlocked);
+
+  const onUserUnblockedRef =
+    useRef<
+      ((data: UserUnblockedEvent) => void) |
+        undefined
+    >(onUserUnblocked);
+
+  // ==========================================
+  // UPDATE CURRENT VALUES
+  // ==========================================
+
   useEffect(() => {
     conversationIdRef.current =
       conversationId;
@@ -134,6 +190,20 @@ export default function useChatSocket({
     onTypingStopRef.current =
       onTypingStop;
   }, [onTypingStop]);
+
+  // ==========================================
+  // UPDATE BLOCK CALLBACK REFS
+  // ==========================================
+
+  useEffect(() => {
+    onUserBlockedRef.current =
+      onUserBlocked;
+  }, [onUserBlocked]);
+
+  useEffect(() => {
+    onUserUnblockedRef.current =
+      onUserUnblocked;
+  }, [onUserUnblocked]);
 
   // ==========================================
   // PENDING READ MESSAGE IDS
@@ -486,6 +556,122 @@ export default function useChatSocket({
           "Conversation error:",
           error,
         );
+      },
+    );
+
+    // ========================================
+    // USER BLOCKED
+    // ========================================
+
+    socket.on(
+      "user:blocked",
+      ({
+        blockerId,
+        blockedId,
+      }: UserBlockedEvent) => {
+        console.log(
+          "USER BLOCKED EVENT RECEIVED:",
+          {
+            blockerId,
+            blockedId,
+          },
+        );
+
+        const normalizedCurrentUserId =
+          currentUserIdRef.current
+            ? String(
+                currentUserIdRef.current,
+              )
+            : null;
+
+        if (
+          !normalizedCurrentUserId
+        ) {
+          return;
+        }
+
+        // ====================================
+        // EVENT IS FOR CURRENT USER
+        // ONLY WHEN CURRENT USER IS BLOCKED
+        // ====================================
+
+        if (
+          String(blockedId) !==
+          normalizedCurrentUserId
+        ) {
+          return;
+        }
+
+        console.log(
+          "CURRENT USER WAS BLOCKED BY:",
+          blockerId,
+        );
+
+        onUserBlockedRef.current?.({
+          blockerId:
+            String(blockerId),
+
+          blockedId:
+            String(blockedId),
+        });
+      },
+    );
+
+    // ========================================
+    // USER UNBLOCKED
+    // ========================================
+
+    socket.on(
+      "user:unblocked",
+      ({
+        blockerId,
+        blockedId,
+      }: UserUnblockedEvent) => {
+        console.log(
+          "USER UNBLOCKED EVENT RECEIVED:",
+          {
+            blockerId,
+            blockedId,
+          },
+        );
+
+        const normalizedCurrentUserId =
+          currentUserIdRef.current
+            ? String(
+                currentUserIdRef.current,
+              )
+            : null;
+
+        if (
+          !normalizedCurrentUserId
+        ) {
+          return;
+        }
+
+        // ====================================
+        // EVENT IS FOR CURRENT USER
+        // ONLY WHEN CURRENT USER WAS BLOCKED
+        // ====================================
+
+        if (
+          String(blockedId) !==
+          normalizedCurrentUserId
+        ) {
+          return;
+        }
+
+        console.log(
+          "CURRENT USER WAS UNBLOCKED BY:",
+          blockerId,
+        );
+
+        onUserUnblockedRef.current?.({
+          blockerId:
+            String(blockerId),
+
+          blockedId:
+            String(blockedId),
+        });
       },
     );
 
@@ -1635,7 +1821,10 @@ export default function useChatSocket({
 
     toggleMessageReactionRealtime,
 
-    // NEW
+    // ========================================
+    // EXISTING
+    // ========================================
+
     disconnectSocket,
   };
 }
