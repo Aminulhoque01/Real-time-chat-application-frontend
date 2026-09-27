@@ -16,6 +16,7 @@ import {
 interface NotificationItem
   extends ChatNotificationData {
   id: string;
+  
 }
 
 // ==========================================
