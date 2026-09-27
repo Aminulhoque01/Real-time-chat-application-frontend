@@ -213,6 +213,23 @@ export const messageApi = baseApi.injectEndpoints({
 
       invalidatesTags: ["Conversation"],
     }),
+
+    registerPushToken: builder.mutation<
+      {
+        success: boolean;
+        message: string;
+      },
+      {
+        token: string;
+        device?: string;
+      }
+    >({
+      query: (body) => ({
+        url: "/notifications/token",
+        method: "POST",
+        body,
+      }),
+    }),
   }),
 });
 
@@ -220,4 +237,5 @@ export const {
   useGetMessagesQuery,
   useSendMessageMutation,
   useDeleteMessageMutation,
+  useRegisterPushTokenMutation
 } = messageApi;

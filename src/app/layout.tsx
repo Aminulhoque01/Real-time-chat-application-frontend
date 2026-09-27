@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
+
 import ReduxProvider from "../redux/provider";
 
-
+import PushNotificationProvider from "@/src/components/providers/PushNotificationProvider";
+import ChatNotificationToast from "../components/chat/ChatNotificationToast";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -18,7 +20,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <ReduxProvider>{children}</ReduxProvider>
+        <ReduxProvider>
+          <PushNotificationProvider />
+           <ChatNotificationToast />
+
+          {children}
+        </ReduxProvider>
       </body>
     </html>
   );

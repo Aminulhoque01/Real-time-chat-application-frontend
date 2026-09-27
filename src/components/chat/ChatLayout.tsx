@@ -51,6 +51,12 @@ import type {
 
 import useChatSocket from "@/src/hooks/useChatSocket";
 
+// =====================================================
+// PUSH NOTIFICATION
+// =====================================================
+
+import { usePushNotification } from "@/src/hooks/usePushNotification";
+
 export default function ChatLayout() {
   // =====================================================
   // ROUTER
@@ -71,6 +77,24 @@ export default function ChatLayout() {
   const user = useAppSelector(
     (state) => state.auth.user,
   );
+
+  // =====================================================
+  // PUSH NOTIFICATION
+  // =====================================================
+  // This will:
+  // 1. Ask notification permission
+  // 2. Register Firebase service worker
+  // 3. Generate FCM token
+  // 4. Send token to backend
+  //
+  // It only runs when a logged-in user exists.
+  // =====================================================
+
+  usePushNotification({
+    userId: user?._id
+      ? String(user._id)
+      : undefined,
+  });
 
   // =====================================================
   // CONVERSATIONS
@@ -129,8 +153,6 @@ export default function ChatLayout() {
     profileUserId,
     setProfileUserId,
   ] = useState<string | null>(null);
-
- 
 
   const [
     isBlocked,
@@ -308,16 +330,6 @@ export default function ChatLayout() {
 
         // ==========================================
         // UPDATE CURRENT PROFILE STATE
-        //
-        // Example:
-        //
-        // A blocks B
-        //
-        // B's profileUserId = A
-        //
-        // B sees:
-        // blockedByOther = true
-        // canUnblock = false
         // ==========================================
 
         const isCurrentProfileTarget =
@@ -327,14 +339,6 @@ export default function ChatLayout() {
 
         // ==========================================
         // UPDATE CURRENT DIRECT CHAT STATE
-        //
-        // Example:
-        //
-        // A blocks B
-        //
-        // B is currently chatting with A.
-        //
-        // ChatUI must immediately become blocked.
         // ==========================================
 
         const isCurrentDirectChatTarget =
@@ -386,8 +390,6 @@ export default function ChatLayout() {
 
         // ==========================================
         // INVALIDATE PROFILE/BLOCK CACHE
-        //
-        // This will refresh API state as well.
         // ==========================================
 
         dispatch(
@@ -948,8 +950,11 @@ export default function ChatLayout() {
       // ==========================================
 
       setIsBlocked(false);
+
       setBlockedByMe(false);
+
       setBlockedByOther(false);
+
       setCanUnblock(false);
 
       setProfileUserId(
@@ -976,8 +981,11 @@ export default function ChatLayout() {
       setEditBio("");
 
       setIsBlocked(false);
+
       setBlockedByMe(false);
+
       setBlockedByOther(false);
+
       setCanUnblock(false);
 
       setProfileUserId(
@@ -998,8 +1006,11 @@ export default function ChatLayout() {
       setProfileUserId(null);
 
       setIsBlocked(false);
+
       setBlockedByMe(false);
+
       setBlockedByOther(false);
+
       setCanUnblock(false);
 
       setIsEditingProfile(false);
@@ -1169,8 +1180,6 @@ export default function ChatLayout() {
 
         // ==========================================
         // IMMEDIATE UI UPDATE
-        //
-        // Current user is the blocker.
         // ==========================================
 
         setIsBlocked(true);
@@ -1308,8 +1317,11 @@ export default function ChatLayout() {
         );
 
         setIsBlocked(false);
+
         setBlockedByMe(false);
+
         setBlockedByOther(false);
+
         setCanUnblock(false);
 
         setIsEditingProfile(false);
