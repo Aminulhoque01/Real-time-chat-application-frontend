@@ -1,896 +1,979 @@
 "use client";
 
 import {
-  MessageCircle,
-  MoreVertical,
-  Plus,
-  Search,
+MessageCircle,
+MoreVertical,
+Plus,
+Search,
 } from "lucide-react";
+
 import { useMemo, useState } from "react";
 
 import { useAppSelector } from "@/src/redux/hooks";
-import { useGetConversationsQuery } from "@/src/redux/features/conversation/conversationApi";
+
+import {
+useGetConversationsQuery,
+} from "@/src/redux/features/conversation/conversationApi";
+
+import type { Conversation } from "@/src/redux/features/conversation/conversation.types";
+
+import CreateGroupModal from "@/src/components/chat/CreateGroupModal";
 
 interface ChatSidebarProps {
-  selectedConversationId: string | null;
-  onSelectConversation: (conversationId: string) => void;
+selectedConversationId: string | null;
+onSelectConversation: (conversationId: string) => void;
 
-  isOpen: boolean;
-  onClose: () => void;
+isOpen: boolean;
+onClose: () => void;
 
-  onOpenProfile: () => void;
-    
+onOpenProfile: () => void;
 }
 
+/* ----------------------------------
+Format Time
+---------------------------------- */
+
 const formatTime = (date?: string) => {
-  if (!date) return "";
+if (!date) return "";
 
-  const messageDate = new Date(date);
+const messageDate = new Date(date);
 
-  if (Number.isNaN(messageDate.getTime())) {
-    return "";
-  }
+if (Number.isNaN(messageDate.getTime())) {
+return "";
+}
 
-  const now = new Date();
+const now = new Date();
 
-  const isToday =
-    messageDate.toDateString() === now.toDateString();
+const isToday =
+messageDate.toDateString() ===
+now.toDateString();
 
-  if (isToday) {
-    return messageDate.toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  }
+if (isToday) {
+return messageDate.toLocaleTimeString([], {
+hour: "numeric",
+minute: "2-digit",
+});
+}
 
-  return messageDate.toLocaleDateString([], {
-    month: "short",
-    day: "numeric",
-  });
+return messageDate.toLocaleDateString([], {
+month: "short",
+day: "numeric",
+});
 };
 
 /* ----------------------------------
-   Get Other Participant
+Get Other Participant
 ---------------------------------- */
 
 const getOtherParticipant = (
-  conversation: any,
-  currentUserId?: string,
+conversation: any,
+currentUserId?: string,
 ) => {
-  if (conversation.type !== "direct") {
-    return null;
-  }
+if (conversation.type !== "direct") {
+return null;
+}
 
-  return (
-    conversation.participants.find(
-      (participant: any) =>
-        participant._id !== currentUserId,
-    ) ?? null
-  );
+return (
+conversation.participants.find(
+(participant: any) =>
+participant._id !== currentUserId,
+) ?? null
+);
 };
 
 /* ----------------------------------
-   Conversation Name
+Conversation Name
 ---------------------------------- */
 
 const getConversationName = (
-  conversation: any,
-  currentUserId?: string,
+conversation: any,
+currentUserId?: string,
 ) => {
-  if (conversation.type === "group") {
-    return conversation.name || "Group";
-  }
+if (conversation.type === "group") {
+return conversation.name || "Group";
+}
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+const otherUser = getOtherParticipant(
+conversation,
+currentUserId,
+);
 
-  return (
-    otherUser?.name ||
-    otherUser?.phone ||
-    "Unknown"
-  );
+return (
+otherUser?.name ||
+otherUser?.phone ||
+"Unknown"
+);
 };
 
 /* ----------------------------------
-   Conversation Avatar
+Conversation Avatar
 ---------------------------------- */
 
 const getConversationAvatar = (
-  conversation: any,
-  currentUserId?: string,
+conversation: any,
+currentUserId?: string,
 ) => {
-  if (conversation.type === "group") {
-    return null;
-  }
+if (conversation.type === "group") {
+return null;
+}
 
-  const otherUser = getOtherParticipant(
-    conversation,
-    currentUserId,
-  );
+const otherUser = getOtherParticipant(
+conversation,
+currentUserId,
+);
 
-  return otherUser?.avatar || null;
+return otherUser?.avatar || null;
 };
 
 /* ----------------------------------
-   Last Message Preview
+Last Message Preview
 ---------------------------------- */
 
 const getLastMessagePreview = (
-  conversation: any,
+conversation: any,
 ) => {
-  const lastMessage =
-    conversation.lastMessage;
+const lastMessage =
+conversation.lastMessage;
 
-  if (!lastMessage) {
-    return "No messages yet";
-  }
+if (!lastMessage) {
+return "No messages yet";
+}
 
-  /* Text message */
+/* Text message */
 
-  if (lastMessage.text?.trim()) {
-    return lastMessage.text;
-  }
+if (lastMessage.text?.trim()) {
+return lastMessage.text;
+}
 
-  /* Attachments */
+/* Attachments */
 
-  const attachments =
-    lastMessage.attachments;
+const attachments =
+lastMessage.attachments;
 
-  if (
-    Array.isArray(attachments) &&
-    attachments.length > 0
-  ) {
-    const firstAttachment =
-      attachments[0];
+if (
+Array.isArray(attachments) &&
+attachments.length > 0
+) {
+const firstAttachment =
+attachments[0];
 
-    switch (firstAttachment?.type) {
-      case "audio":
-        return "🎤 Voice message";
 
-      case "video":
-        return "🎥 Video";
+switch (firstAttachment?.type) {
+  case "audio":
+    return "🎤 Voice message";
 
-      case "image":
-        return "🖼️ Image";
+  case "video":
+    return "🎥 Video";
 
-      default:
-        return "📎 File";
-    }
-  }
+  case "image":
+    return "🖼️ Image";
 
-  return "No messages yet";
+  default:
+    return "📎 File";
+}
+
+
+}
+
+return "No messages yet";
 };
 
 export default function ChatSidebar({
-  selectedConversationId,
-  onSelectConversation,
-  isOpen,
-  onClose,
-  onOpenProfile,
+selectedConversationId,
+onSelectConversation,
+isOpen,
+onClose,
+onOpenProfile,
 }: ChatSidebarProps) {
-  const user = useAppSelector(
-    (state) => state.auth.user,
+const user = useAppSelector(
+(state) => state.auth.user,
+);
+
+const {
+data: conversations = [],
+isLoading,
+isError,
+} = useGetConversationsQuery();
+
+const [search, setSearch] = useState("");
+
+/* ----------------------------------
+Create Group Modal
+---------------------------------- */
+
+const [
+isCreateGroupOpen,
+setIsCreateGroupOpen,
+] = useState(false);
+
+/* ----------------------------------
+Filter Conversations
+---------------------------------- */
+
+const filteredConversations =
+useMemo(() => {
+const value =
+search.trim().toLowerCase();
+
+
+  if (!value) {
+    return conversations;
+  }
+
+  return conversations.filter(
+    (conversation) => {
+      const name =
+        getConversationName(
+          conversation,
+          user?._id,
+        ).toLowerCase();
+
+      const lastMessage =
+        getLastMessagePreview(
+          conversation,
+        ).toLowerCase();
+
+      return (
+        name.includes(value) ||
+        lastMessage.includes(value)
+      );
+    },
+  );
+}, [
+  conversations,
+  search,
+  user?._id,
+]);
+
+
+/* ----------------------------------
+Select Conversation
+---------------------------------- */
+
+const handleSelectConversation = (
+conversationId: string,
+) => {
+onSelectConversation(conversationId);
+
+
+/*
+ * Close sidebar on mobile.
+ * Desktop sidebar remains visible.
+ */
+onClose();
+
+
+};
+
+/* ----------------------------------
+Group Created
+---------------------------------- */
+
+const handleGroupCreated = (
+conversation: Conversation,
+) => {
+/*
+* The createGroup mutation already invalidates
+* the Conversation tag, so the conversation
+* list will refresh automatically.
+*/
+
+
+setIsCreateGroupOpen(false);
+
+/*
+ * Automatically open the newly created group.
+ */
+if (conversation?._id) {
+  onSelectConversation(
+    conversation._id,
   );
 
-  const {
-    data: conversations = [],
-    isLoading,
-    isError,
-  } = useGetConversationsQuery();
+  /*
+   * Close sidebar on mobile.
+   */
+  onClose();
+}
 
-  const [search, setSearch] = useState("");
 
-  /* ----------------------------------
-     Filter Conversations
-  ---------------------------------- */
+};
 
-  const filteredConversations =
-    useMemo(() => {
-      const value =
-        search.trim().toLowerCase();
+/* ----------------------------------
+Current User
+---------------------------------- */
 
-      if (!value) {
-        return conversations;
+const currentUserName =
+user?.name?.trim() ||
+user?.phone ||
+"User";
+
+const currentUserInitial =
+currentUserName
+.charAt(0)
+.toUpperCase();
+
+return (
+<>
+<aside
+className={`
+absolute z-40 flex h-full w-[320px]
+flex-col border-r border-slate-200
+bg-white transition-transform duration-300
+
+
+      lg:relative
+      lg:translate-x-0
+
+      ${
+        isOpen
+          ? "translate-x-0"
+          : "-translate-x-full"
       }
+    `}
+  >
+    {/* ==================================================
+        HEADER
+    ================================================== */}
 
-      return conversations.filter(
-        (conversation) => {
-          const name =
-            getConversationName(
-              conversation,
-              user?._id,
-            ).toLowerCase();
-
-          const lastMessage =
-            getLastMessagePreview(
-              conversation,
-            ).toLowerCase();
-
-          return (
-            name.includes(value) ||
-            lastMessage.includes(value)
-          );
-        },
-      );
-    }, [
-      conversations,
-      search,
-      user?._id,
-    ]);
-
-  /* ----------------------------------
-     Select Conversation
-  ---------------------------------- */
-
-  const handleSelectConversation = (
-    conversationId: string,
-  ) => {
-    onSelectConversation(conversationId);
-
-    /*
-     * Close sidebar on mobile.
-     * Desktop sidebar remains visible.
-     */
-    onClose();
-  };
-
-  /* ----------------------------------
-     Current User
-  ---------------------------------- */
-
-  const currentUserName =
-    user?.name?.trim() ||
-    user?.phone ||
-    "User";
-
-  const currentUserInitial =
-    currentUserName
-      .charAt(0)
-      .toUpperCase();
-
-  return (
-    <aside
-      className={`
-        absolute z-40 flex h-full w-[320px]
-        flex-col border-r border-slate-200
-        bg-white transition-transform duration-300
-
-        lg:relative
-        lg:translate-x-0
-
-        ${
-          isOpen
-            ? "translate-x-0"
-            : "-translate-x-full"
-        }
-      `}
+    <div
+      className="
+        border-b border-slate-100
+        px-5 pb-4 pt-6
+      "
     >
-      {/* ==================================================
-          HEADER
-      ================================================== */}
+      {/* Header Title */}
 
       <div
         className="
-          border-b border-slate-100
-          px-5 pb-4 pt-6
+          mb-5 flex
+          items-center justify-between
         "
       >
-        {/* Header Title */}
-
-        <div
-          className="
-            mb-5 flex
-            items-center justify-between
-          "
-        >
-          <div>
-            <h1
-              className="
-                text-xl font-bold
-                tracking-tight text-slate-900
-              "
-            >
-              Messages
-            </h1>
-
-            <p
-              className="
-                mt-1 text-xs
-                text-slate-400
-              "
-            >
-              {conversations.length} conversations
-            </p>
-          </div>
-
-          {/* New Conversation */}
-
-          <button
-            type="button"
+        <div>
+          <h1
             className="
-              flex h-9 w-9
-              items-center justify-center
-              rounded-xl
-              bg-slate-100
-              text-slate-500
-              transition
-              hover:bg-slate-200
-              hover:text-slate-700
+              text-xl font-bold
+              tracking-tight text-slate-900
             "
-            title="New conversation"
           >
-            <Plus size={18} />
-          </button>
-        </div>
+            Messages
+          </h1>
 
-        {/* ==================================================
-            SEARCH
-        ================================================== */}
-
-        <div className="relative">
-          <Search
-            size={17}
+          <p
             className="
-              absolute left-3
-              top-1/2
-              -translate-y-1/2
+              mt-1 text-xs
               text-slate-400
             "
-          />
-
-          <input
-            type="text"
-            value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
-            placeholder="Search conversations..."
-            className="
-              h-11 w-full
-              rounded-xl
-              border border-slate-200
-              bg-slate-50
-              pl-10 pr-4
-              text-sm text-slate-700
-              outline-none
-              transition
-
-              placeholder:text-slate-400
-
-              focus:border-slate-300
-              focus:bg-white
-              focus:ring-2
-              focus:ring-slate-100
-            "
-          />
+          >
+            {conversations.length} conversations
+          </p>
         </div>
+
+        {/* New Conversation / Create Group */}
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsCreateGroupOpen(true)
+          }
+          className="
+            flex h-9 w-9
+            items-center justify-center
+            rounded-xl
+            bg-slate-100
+            text-slate-500
+            transition
+            hover:bg-slate-200
+            hover:text-slate-700
+          "
+          title="Create group"
+          aria-label="Create group"
+        >
+          <Plus size={18} />
+        </button>
       </div>
 
       {/* ==================================================
-          CONVERSATIONS
+          SEARCH
       ================================================== */}
 
-      <div
-        className="
-          flex-1
-          overflow-y-auto
-          px-3 py-3
-        "
-      >
-        {/* ----------------------------------
-            Loading
-        ---------------------------------- */}
+      <div className="relative">
+        <Search
+          size={17}
+          className="
+            absolute left-3
+            top-1/2
+            -translate-y-1/2
+            text-slate-400
+          "
+        />
 
-        {isLoading && (
-          <div className="space-y-2">
-            {[1, 2, 3, 4, 5, 6].map(
-              (item) => (
+        <input
+          type="text"
+          value={search}
+          onChange={(event) =>
+            setSearch(event.target.value)
+          }
+          placeholder="Search conversations..."
+          className="
+            h-11 w-full
+            rounded-xl
+            border border-slate-200
+            bg-slate-50
+            pl-10 pr-4
+            text-sm text-slate-700
+            outline-none
+            transition
+
+            placeholder:text-slate-400
+
+            focus:border-slate-300
+            focus:bg-white
+            focus:ring-2
+            focus:ring-slate-100
+          "
+        />
+      </div>
+    </div>
+
+    {/* ==================================================
+        CONVERSATIONS
+    ================================================== */}
+
+    <div
+      className="
+        flex-1
+        overflow-y-auto
+        px-3 py-3
+      "
+    >
+      {/* ----------------------------------
+          Loading
+      ---------------------------------- */}
+
+      {isLoading && (
+        <div className="space-y-2">
+          {[1, 2, 3, 4, 5, 6].map(
+            (item) => (
+              <div
+                key={item}
+                className="
+                  flex animate-pulse
+                  items-center gap-3
+                  rounded-xl p-3
+                "
+              >
                 <div
-                  key={item}
                   className="
-                    flex animate-pulse
-                    items-center gap-3
-                    rounded-xl p-3
+                    h-12 w-12
+                    rounded-full
+                    bg-slate-200
+                  "
+                />
+
+                <div
+                  className="
+                    flex-1 space-y-2
                   "
                 >
                   <div
                     className="
-                      h-12 w-12
-                      rounded-full
+                      h-3 w-28
+                      rounded
                       bg-slate-200
                     "
                   />
 
                   <div
                     className="
-                      flex-1 space-y-2
+                      h-3 w-40
+                      rounded
+                      bg-slate-100
                     "
-                  >
-                    <div
-                      className="
-                        h-3 w-28
-                        rounded
-                        bg-slate-200
-                      "
-                    />
-
-                    <div
-                      className="
-                        h-3 w-40
-                        rounded
-                        bg-slate-100
-                      "
-                    />
-                  </div>
+                  />
                 </div>
-              ),
-            )}
-          </div>
-        )}
+              </div>
+            ),
+          )}
+        </div>
+      )}
 
-        {/* ----------------------------------
-            Error
-        ---------------------------------- */}
+      {/* ----------------------------------
+          Error
+      ---------------------------------- */}
 
-        {isError && (
+      {isError && (
+        <div
+          className="
+            rounded-xl
+            border border-red-100
+            bg-red-50
+            p-4
+            text-center
+          "
+        >
+          <p
+            className="
+              text-sm
+              font-medium
+              text-red-600
+            "
+          >
+            Failed to load conversations
+          </p>
+
+          <p
+            className="
+              mt-1
+              text-xs
+              text-red-400
+            "
+          >
+            Please try again.
+          </p>
+        </div>
+      )}
+
+      {/* ----------------------------------
+          Empty
+      ---------------------------------- */}
+
+      {!isLoading &&
+        !isError &&
+        filteredConversations.length ===
+          0 && (
           <div
             className="
-              rounded-xl
-              border border-red-100
-              bg-red-50
-              p-4
+              flex h-64
+              flex-col
+              items-center
+              justify-center
               text-center
             "
           >
+            <div
+              className="
+                mb-3
+                flex h-14 w-14
+                items-center justify-center
+                rounded-2xl
+                bg-slate-100
+              "
+            >
+              <MessageCircle
+                size={25}
+                className="text-slate-400"
+              />
+            </div>
+
             <p
               className="
                 text-sm
-                font-medium
-                text-red-600
+                font-semibold
+                text-slate-700
               "
             >
-              Failed to load conversations
+              No conversations
             </p>
 
             <p
               className="
                 mt-1
+                max-w-[220px]
                 text-xs
-                text-red-400
+                text-slate-400
               "
             >
-              Please try again.
+              Start a new conversation
+              to begin chatting.
             </p>
           </div>
         )}
 
-        {/* ----------------------------------
-            Empty
-        ---------------------------------- */}
+      {/* ----------------------------------
+          Conversation List
+      ---------------------------------- */}
 
-        {!isLoading &&
-          !isError &&
-          filteredConversations.length ===
-            0 && (
-            <div
-              className="
-                flex h-64
-                flex-col
-                items-center
-                justify-center
-                text-center
-              "
-            >
-              <div
-                className="
-                  mb-3
-                  flex h-14 w-14
-                  items-center justify-center
-                  rounded-2xl
-                  bg-slate-100
-                "
-              >
-                <MessageCircle
-                  size={25}
-                  className="text-slate-400"
-                />
-              </div>
+      <div className="space-y-1">
+        {filteredConversations.map(
+          (conversation) => {
+            const name =
+              getConversationName(
+                conversation,
+                user?._id,
+              );
 
-              <p
-                className="
-                  text-sm
-                  font-semibold
-                  text-slate-700
-                "
-              >
-                No conversations
-              </p>
+            const avatar =
+              getConversationAvatar(
+                conversation,
+                user?._id,
+              );
 
-              <p
-                className="
-                  mt-1
-                  max-w-[220px]
-                  text-xs
-                  text-slate-400
-                "
-              >
-                Start a new conversation
-                to begin chatting.
-              </p>
-            </div>
-          )}
+            const otherUser =
+              getOtherParticipant(
+                conversation,
+                user?._id,
+              );
 
-        {/* ----------------------------------
-            Conversation List
-        ---------------------------------- */}
+            const isActive =
+              conversation._id ===
+              selectedConversationId;
 
-        <div className="space-y-1">
-          {filteredConversations.map(
-            (conversation) => {
-              const name =
-                getConversationName(
-                  conversation,
-                  user?._id,
-                );
+            const lastMessagePreview =
+              getLastMessagePreview(
+                conversation,
+              );
 
-              const avatar =
-                getConversationAvatar(
-                  conversation,
-                  user?._id,
-                );
+            const unreadCount =
+              conversation.unreadCount || 0;
 
-              const otherUser =
-                getOtherParticipant(
-                  conversation,
-                  user?._id,
-                );
+            return (
+              <button
+                key={conversation._id}
+                type="button"
+                onClick={() =>
+                  handleSelectConversation(
+                    conversation._id,
+                  )
+                }
+                className={`
+                  group
+                  flex w-full
+                  items-center gap-3
+                  rounded-xl
+                  p-3
+                  text-left
+                  transition
 
-              const isActive =
-                conversation._id ===
-                selectedConversationId;
-
-              const lastMessagePreview =
-                getLastMessagePreview(
-                  conversation,
-                );
-
-              const unreadCount =
-                conversation.unreadCount || 0;
-
-              return (
-                <button
-                  key={conversation._id}
-                  type="button"
-                  onClick={() =>
-                    handleSelectConversation(
-                      conversation._id,
-                    )
+                  ${
+                    isActive
+                      ? "bg-slate-100"
+                      : "hover:bg-slate-50"
                   }
-                  className={`
-                    group
-                    flex w-full
-                    items-center gap-3
-                    rounded-xl
-                    p-3
-                    text-left
-                    transition
+                `}
+              >
+                {/* ====================================
+                    AVATAR
+                ==================================== */}
 
-                    ${
-                      isActive
-                        ? "bg-slate-100"
-                        : "hover:bg-slate-50"
-                    }
-                  `}
+                <div
+                  className="
+                    relative
+                    shrink-0
+                  "
                 >
-                  {/* ====================================
-                      AVATAR
-                  ==================================== */}
+                  {avatar ? (
+                    <img
+                      src={avatar}
+                      alt={name}
+                      className="
+                        h-12 w-12
+                        rounded-full
+                        object-cover
+                      "
+                    />
+                  ) : (
+                    <div
+                      className="
+                        flex h-12 w-12
+                        items-center
+                        justify-center
+                        rounded-full
+                        bg-slate-900
+                        text-sm
+                        font-bold
+                        text-white
+                      "
+                    >
+                      {name
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Online Indicator */}
+
+                  {conversation.type ===
+                    "direct" &&
+                    otherUser?.isOnline && (
+                      <span
+                        className="
+                          absolute
+                          bottom-0
+                          right-0
+                          h-3 w-3
+                          rounded-full
+                          border-2
+                          border-white
+                          bg-emerald-500
+                        "
+                      />
+                    )}
+                </div>
+
+                {/* ====================================
+                    CONVERSATION INFO
+                ==================================== */}
+
+                <div
+                  className="
+                    min-w-0
+                    flex-1
+                  "
+                >
+                  {/* Name + Time */}
 
                   <div
                     className="
-                      relative
-                      shrink-0
+                      flex
+                      items-center
+                      justify-between
+                      gap-2
                     "
                   >
-                    {avatar ? (
-                      <img
-                        src={avatar}
-                        alt={name}
+                    <p
+                      className={`
+                        truncate
+                        text-sm
+
+                        ${
+                          unreadCount > 0
+                            ? "font-bold text-slate-900"
+                            : "font-semibold text-slate-700"
+                        }
+                      `}
+                    >
+                      {name}
+                    </p>
+
+                    <span
+                      className="
+                        shrink-0
+                        text-[10px]
+                        text-slate-400
+                      "
+                    >
+                      {formatTime(
+                        conversation
+                          .lastMessage
+                          ?.createdAt,
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Last Message + Unread */}
+
+                  <div
+                    className="
+                      mt-1
+                      flex
+                      items-center
+                      justify-between
+                      gap-2
+                    "
+                  >
+                    <p
+                      className={`
+                        truncate
+                        text-xs
+
+                        ${
+                          unreadCount > 0
+                            ? "font-medium text-slate-600"
+                            : "text-slate-400"
+                        }
+                      `}
+                    >
+                      {lastMessagePreview}
+                    </p>
+
+                    {/* Unread Badge */}
+
+                    {unreadCount > 0 && (
+                      <span
                         className="
-                          h-12 w-12
-                          rounded-full
-                          object-cover
-                        "
-                      />
-                    ) : (
-                      <div
-                        className="
-                          flex h-12 w-12
+                          flex
+                          h-5
+                          min-w-5
+                          shrink-0
                           items-center
                           justify-center
                           rounded-full
                           bg-slate-900
-                          text-sm
+                          px-1.5
+                          text-[10px]
                           font-bold
                           text-white
                         "
                       >
-                        {name
-                          .charAt(0)
-                          .toUpperCase()}
-                      </div>
-                    )}
-
-                    {/* Online Indicator */}
-
-                    {conversation.type ===
-                      "direct" &&
-                      otherUser?.isOnline && (
-                        <span
-                          className="
-                            absolute
-                            bottom-0
-                            right-0
-                            h-3 w-3
-                            rounded-full
-                            border-2
-                            border-white
-                            bg-emerald-500
-                          "
-                        />
-                      )}
-                  </div>
-
-                  {/* ====================================
-                      CONVERSATION INFO
-                  ==================================== */}
-
-                  <div
-                    className="
-                      min-w-0
-                      flex-1
-                    "
-                  >
-                    {/* Name + Time */}
-
-                    <div
-                      className="
-                        flex
-                        items-center
-                        justify-between
-                        gap-2
-                      "
-                    >
-                      <p
-                        className={`
-                          truncate
-                          text-sm
-
-                          ${
-                            unreadCount > 0
-                              ? "font-bold text-slate-900"
-                              : "font-semibold text-slate-700"
-                          }
-                        `}
-                      >
-                        {name}
-                      </p>
-
-                      <span
-                        className="
-                          shrink-0
-                          text-[10px]
-                          text-slate-400
-                        "
-                      >
-                        {formatTime(
-                          conversation
-                            .lastMessage
-                            ?.createdAt,
-                        )}
+                        {unreadCount > 99
+                          ? "99+"
+                          : unreadCount}
                       </span>
-                    </div>
-
-                    {/* Last Message + Unread */}
-
-                    <div
-                      className="
-                        mt-1
-                        flex
-                        items-center
-                        justify-between
-                        gap-2
-                      "
-                    >
-                      <p
-                        className={`
-                          truncate
-                          text-xs
-
-                          ${
-                            unreadCount > 0
-                              ? "font-medium text-slate-600"
-                              : "text-slate-400"
-                          }
-                        `}
-                      >
-                        {lastMessagePreview}
-                      </p>
-
-                      {/* Unread Badge */}
-
-                      {unreadCount > 0 && (
-                        <span
-                          className="
-                            flex
-                            h-5
-                            min-w-5
-                            shrink-0
-                            items-center
-                            justify-center
-                            rounded-full
-                            bg-slate-900
-                            px-1.5
-                            text-[10px]
-                            font-bold
-                            text-white
-                          "
-                        >
-                          {unreadCount > 99
-                            ? "99+"
-                            : unreadCount}
-                        </span>
-                      )}
-                    </div>
+                    )}
                   </div>
-                </button>
-              );
-            },
-          )}
-        </div>
+                </div>
+              </button>
+            );
+          },
+        )}
       </div>
+    </div>
 
-      {/* ==================================================
-          CURRENT USER / PROFILE
-      ================================================== */}
+    {/* ==================================================
+        CURRENT USER / PROFILE
+    ================================================== */}
 
+    <div
+      className="
+        border-t
+        border-slate-100
+        p-3
+      "
+    >
       <div
         className="
-          border-t
-          border-slate-100
+          flex
+          items-center
+          gap-3
+          rounded-xl
+          bg-slate-50
           p-3
+          transition
+          hover:bg-slate-100
         "
       >
-        <div
+        {/* Profile Click Area */}
+
+        <button
+          type="button"
+          onClick={onOpenProfile}
           className="
             flex
+            min-w-0
+            flex-1
             items-center
             gap-3
-            rounded-xl
-            bg-slate-50
-            p-3
-            transition
-            hover:bg-slate-100
+            rounded-lg
+            text-left
+            outline-none
           "
         >
-          {/* Profile Click Area */}
+          {/* Avatar */}
 
-          <button
-            type="button"
-            onClick={onOpenProfile}
+          <div className="shrink-0">
+            {user?.avatar ? (
+              <img
+                src={user.avatar}
+                alt={currentUserName}
+                className="
+                  h-11 w-11
+                  rounded-full
+                  object-cover
+                "
+              />
+            ) : (
+              <div
+                className="
+                  flex h-11 w-11
+                  items-center
+                  justify-center
+                  rounded-full
+                  bg-slate-900
+                  text-sm
+                  font-bold
+                  text-white
+                "
+              >
+                {currentUserInitial}
+              </div>
+            )}
+          </div>
+
+          {/* User Info */}
+
+          <div
             className="
-              flex
               min-w-0
               flex-1
-              items-center
-              gap-3
-              rounded-lg
-              text-left
-              outline-none
             "
           >
-            {/* Avatar */}
-
-            <div className="shrink-0">
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt={currentUserName}
-                  className="
-                    h-11 w-11
-                    rounded-full
-                    object-cover
-                  "
-                />
-              ) : (
-                <div
-                  className="
-                    flex h-11 w-11
-                    items-center
-                    justify-center
-                    rounded-full
-                    bg-slate-900
-                    text-sm
-                    font-bold
-                    text-white
-                  "
-                >
-                  {currentUserInitial}
-                </div>
-              )}
-            </div>
-
-            {/* User Info */}
+            <p
+              className="
+                truncate
+                text-sm
+                font-semibold
+                text-slate-800
+              "
+            >
+              {currentUserName}
+            </p>
 
             <div
               className="
-                min-w-0
-                flex-1
+                mt-0.5
+                flex
+                items-center
+                gap-1.5
               "
             >
-              <p
+              <span
                 className="
-                  truncate
-                  text-sm
-                  font-semibold
-                  text-slate-800
+                  h-1.5 w-1.5
+                  rounded-full
+                  bg-emerald-500
+                "
+              />
+
+              <span
+                className="
+                  text-[11px]
+                  text-slate-400
                 "
               >
-                {currentUserName}
-              </p>
-
-              <div
-                className="
-                  mt-0.5
-                  flex
-                  items-center
-                  gap-1.5
-                "
-              >
-                <span
-                  className="
-                    h-1.5 w-1.5
-                    rounded-full
-                    bg-emerald-500
-                  "
-                />
-
-                <span
-                  className="
-                    text-[11px]
-                    text-slate-400
-                  "
-                >
-                  Online
-                </span>
-              </div>
+                Online
+              </span>
             </div>
-          </button>
+          </div>
+        </button>
 
-          {/* More Options */}
+        {/* More Options */}
 
-          <button
-            type="button"
-            className="
-              flex
-              h-8 w-8
-              shrink-0
-              items-center
-              justify-center
-              rounded-lg
-              text-slate-400
-              transition
-              hover:bg-white
-              hover:text-slate-700
-            "
-            title="More options"
-          >
-            <MoreVertical size={17} />
-          </button>
-        </div>
+        <button
+          type="button"
+          className="
+            flex
+            h-8 w-8
+            shrink-0
+            items-center
+            justify-center
+            rounded-lg
+            text-slate-400
+            transition
+            hover:bg-white
+            hover:text-slate-700
+          "
+          title="More options"
+        >
+          <MoreVertical size={17} />
+        </button>
       </div>
-    </aside>
-  );
+    </div>
+  </aside>
+
+  {/* ==================================================
+      CREATE GROUP MODAL
+  ================================================== */}
+
+  <CreateGroupModal
+    isOpen={isCreateGroupOpen}
+    onClose={() =>
+      setIsCreateGroupOpen(false)
+    }
+    onCreated={handleGroupCreated}
+  />
+</>
+
+
+);
 }

@@ -1,5 +1,4 @@
-
-
+ 
 import { baseApi } from "../../api/baseApi";
 import type { User } from "../auth/auth.types";
 
@@ -23,12 +22,29 @@ interface UpdateProfileRequest {
 export const userApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     // =========================
+    // Get All Users
+    // =========================
+
+    getAllUsers: builder.query<User[], void>({
+      query: () => ({
+        url: "/user",
+        method: "GET",
+      }),
+
+      transformResponse: (
+        response: UsersResponse,
+      ) => {
+        return response.data;
+      },
+    }),
+
+    // =========================
     // Get Single User
     // =========================
 
     getUserProfile: builder.query<User, string>({
       query: (userId) => ({
-        url: `/users/${userId}`,
+        url: `/user/${userId}`,
         method: "GET",
       }),
 
@@ -47,7 +63,7 @@ export const userApi = baseApi.injectEndpoints({
 
     searchUsers: builder.query<User[], string>({
       query: (query) => ({
-        url: "/users/search",
+        url: "/user/search",
         method: "GET",
         params: {
           query,
@@ -70,7 +86,7 @@ export const userApi = baseApi.injectEndpoints({
       UpdateProfileRequest
     >({
       query: (body) => ({
-        url: "/users/me/profile",
+        url: "/user/me/profile",
         method: "PATCH",
         body,
       }),
@@ -81,7 +97,10 @@ export const userApi = baseApi.injectEndpoints({
         return response.data;
       },
 
-      invalidatesTags: ["User", "Conversation"],
+      invalidatesTags: [
+        "User",
+        "Conversation",
+      ],
     }),
 
     // =========================
@@ -93,7 +112,7 @@ export const userApi = baseApi.injectEndpoints({
       FormData
     >({
       query: (formData) => ({
-        url: "/users/me/avatar",
+        url: "/user/me/avatar",
         method: "PATCH",
         body: formData,
       }),
@@ -113,8 +132,10 @@ export const userApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetAllUsersQuery,
   useGetUserProfileQuery,
   useSearchUsersQuery,
   useUpdateMyProfileMutation,
   useUpdateAvatarMutation,
 } = userApi;
+
