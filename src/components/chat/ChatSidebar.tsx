@@ -970,6 +970,7 @@ bg-white transition-transform duration-300
     onClose={() =>
       setIsCreateGroupOpen(false)
     }
+     currentUserId={user?._id}
     onCreated={handleGroupCreated}
   />
 </>

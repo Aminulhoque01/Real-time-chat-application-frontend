@@ -1,141 +1,61 @@
- 
-import { baseApi } from "../../api/baseApi";
-import type { User } from "../auth/auth.types";
 
-interface SingleUserResponse {
-  success: boolean;
-  message: string;
-  data: User;
-}
 
-interface UsersResponse {
-  success: boolean;
-  message: string;
-  data: User[];
-}
+// import { baseApi } from "../../api/baseApi";
+// import type { User } from "../auth/auth.types";
 
-interface UpdateProfileRequest {
-  name?: string;
-  bio?: string;
-}
+// interface SingleUserResponse {
+//   success: boolean;
+//   message: string;
+//   data: User;
+// }
 
-export const userApi = baseApi.injectEndpoints({
-  endpoints: (builder) => ({
-    // =========================
-    // Get All Users
-    // =========================
+// interface UsersResponse {
+//   success: boolean;
+//   message: string;
+//   data: User[];
+// }
 
-    getAllUsers: builder.query<User[], void>({
-      query: () => ({
-        url: "/user",
-        method: "GET",
-      }),
+// interface UpdateProfileRequest {
+//   name?: string;
+//   bio?: string;
+// }
 
-      transformResponse: (
-        response: UsersResponse,
-      ) => {
-        return response.data;
-      },
-    }),
+// export const userApi = baseApi.injectEndpoints({
+//   endpoints: (builder) => ({
+//     // =========================
+//     // Get Single User
+//     // =========================
 
-    // =========================
-    // Get Single User
-    // =========================
+    
 
-    getUserProfile: builder.query<User, string>({
-      query: (userId) => ({
-        url: `/user/${userId}`,
-        method: "GET",
-      }),
+//     // =========================
+//     // Search Users
+//     // =========================
 
-      transformResponse: (
-        response: SingleUserResponse,
-      ) => {
-        return response.data;
-      },
+//     searchUsers: builder.query<User[], string>({
+//       query: (query) => ({
+//         url: "/users/search",
+//         method: "GET",
+//         params: {
+//           query,
+//         },
+//       }),
 
-      providesTags: ["User"],
-    }),
+//       transformResponse: (
+//         response: UsersResponse,
+//       ) => {
+//         return response.data;
+//       },
+//     }),
 
-    // =========================
-    // Search Users
-    // =========================
+    
+  
+     
+//   }),
+// });
 
-    searchUsers: builder.query<User[], string>({
-      query: (query) => ({
-        url: "/user/search",
-        method: "GET",
-        params: {
-          query,
-        },
-      }),
-
-      transformResponse: (
-        response: UsersResponse,
-      ) => {
-        return response.data;
-      },
-    }),
-
-    // =========================
-    // Update My Profile
-    // =========================
-
-    updateMyProfile: builder.mutation<
-      User,
-      UpdateProfileRequest
-    >({
-      query: (body) => ({
-        url: "/user/me/profile",
-        method: "PATCH",
-        body,
-      }),
-
-      transformResponse: (
-        response: SingleUserResponse,
-      ) => {
-        return response.data;
-      },
-
-      invalidatesTags: [
-        "User",
-        "Conversation",
-      ],
-    }),
-
-    // =========================
-    // Update Avatar
-    // =========================
-
-    updateAvatar: builder.mutation<
-      User,
-      FormData
-    >({
-      query: (formData) => ({
-        url: "/user/me/avatar",
-        method: "PATCH",
-        body: formData,
-      }),
-
-      transformResponse: (
-        response: SingleUserResponse,
-      ) => {
-        return response.data;
-      },
-
-      invalidatesTags: [
-        "User",
-        "Conversation",
-      ],
-    }),
-  }),
-});
-
-export const {
-  useGetAllUsersQuery,
-  useGetUserProfileQuery,
-  useSearchUsersQuery,
-  useUpdateMyProfileMutation,
-  useUpdateAvatarMutation,
-} = userApi;
-
+// export const {
+   
+//   useSearchUsersQuery,
+  
+// } = userApi;
