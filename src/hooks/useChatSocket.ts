@@ -18,9 +18,13 @@ import {
 
 import { messageApi } from "@/src/redux/features/message/messageApi";
 
-import { conversationApi } from "@/src/redux/features/conversation/conversationApi";
+import {
+  conversationApi,
+} from "@/src/redux/features/conversation/conversationApi";
 
-import type { Message } from "@/src/redux/features/message/message.types";
+import type {
+  Message,
+} from "@/src/redux/features/message/message.types";
 
 import {
   emitChatNotification,
@@ -105,7 +109,8 @@ interface MessageReactionUpdate {
     | "added"
     | "removed";
 
-  reactionSummary: ReactionSummary[];
+  reactionSummary:
+    ReactionSummary[];
 }
 
 // ======================================================
@@ -123,7 +128,7 @@ interface UserUnblockedEvent {
 }
 
 // ======================================================
-// JOIN ERROR
+// CONVERSATION ERROR
 // ======================================================
 
 interface ConversationError {
@@ -132,6 +137,18 @@ interface ConversationError {
   conversationId?: string;
 
   [key: string]: unknown;
+}
+
+// ======================================================
+// CONVERSATION READ UPDATE
+// ======================================================
+
+interface ConversationReadUpdate {
+  conversationId: string;
+
+  userId: string;
+
+  messageIds: string[];
 }
 
 // ======================================================
@@ -179,7 +196,7 @@ const normalizeId = (
 };
 
 // ======================================================
-// POPULATED SENDER
+// GET POPULATED SENDER
 // ======================================================
 
 const getPopulatedSender = (
@@ -475,7 +492,7 @@ export default function useChatSocket({
     }, []);
 
   // ====================================================
-  // PENDING READ IDS
+  // PENDING MESSAGE READ IDS
   // ====================================================
 
   const pendingReadMessageIds =
@@ -484,7 +501,7 @@ export default function useChatSocket({
     );
 
   // ====================================================
-  // MARK MESSAGE AS READ
+  // MARK SINGLE MESSAGE AS READ
   // ====================================================
 
   const markMessageAsRead =
@@ -523,6 +540,91 @@ export default function useChatSocket({
     );
 
   // ====================================================
+  // MARK WHOLE CONVERSATION AS READ
+  // ====================================================
+  //
+  // This is the main unread-count logic.
+  //
+  // When user opens a conversation:
+  //
+  // conversation:join
+  //        ↓
+  // conversation:joined
+  //        ↓
+  // conversation:read
+  //        ↓
+  // backend updates readBy
+  //        ↓
+  // conversation:read:update
+  //        ↓
+  // unreadCount = 0
+  //
+  // ====================================================
+
+  const markConversationAsRead =
+    useCallback(
+      (id: string | null) => {
+        const normalizedId =
+          normalizeId(id);
+
+        if (!normalizedId) {
+          return;
+        }
+
+        // ------------------------------------------------
+        // Optimistically reset sidebar count
+        // ------------------------------------------------
+
+        dispatch(
+          conversationApi.util.updateQueryData(
+            "getConversations",
+            undefined,
+            (draft) => {
+              const conversation =
+                draft.find(
+                  (item) =>
+                    String(
+                      item._id,
+                    ) ===
+                    normalizedId,
+                );
+
+              if (!conversation) {
+                return;
+              }
+
+              conversation.unreadCount =
+                0;
+            },
+          ),
+        );
+
+        // ------------------------------------------------
+        // Socket
+        // ------------------------------------------------
+
+        const socket =
+          socketRef.current;
+
+        if (
+          !socket ||
+          !socket.connected
+        ) {
+          return;
+        }
+
+        socket.emit(
+          "conversation:read",
+          {
+            conversationId:
+              normalizedId,
+          },
+        );
+      },
+      [dispatch],
+    );
+
+  // ====================================================
   // JOIN CONVERSATION
   // ====================================================
 
@@ -551,16 +653,27 @@ export default function useChatSocket({
         const alreadyJoined =
           joinedConversationRef.current;
 
+        // ------------------------------------------------
+        // Already joined
+        // ------------------------------------------------
+
         if (
           alreadyJoined ===
           normalizedId
         ) {
+          // Even if already joined,
+          // make sure unread messages are
+          // marked as read.
+          markConversationAsRead(
+            normalizedId,
+          );
+
           return true;
         }
 
-        // ----------------------------------------------
-        // LEAVE OLD
-        // ----------------------------------------------
+        // ------------------------------------------------
+        // Leave old conversation
+        // ------------------------------------------------
 
         if (
           alreadyJoined &&
@@ -584,9 +697,9 @@ export default function useChatSocket({
         joinedConversationRef.current =
           null;
 
-        // ----------------------------------------------
-        // JOIN NEW
-        // ----------------------------------------------
+        // ------------------------------------------------
+        // Join new conversation
+        // ------------------------------------------------
 
         socket.emit(
           "conversation:join",
@@ -596,9 +709,6 @@ export default function useChatSocket({
           },
         );
 
-        joinedConversationRef.current =
-          normalizedId;
-
         console.log(
           "Joining conversation:",
           normalizedId,
@@ -606,7 +716,9 @@ export default function useChatSocket({
 
         return true;
       },
-      [],
+      [
+        markConversationAsRead,
+      ],
     );
 
   // ====================================================
@@ -733,7 +845,7 @@ export default function useChatSocket({
         }
 
         // ----------------------------------------------
-        // FLUSH PENDING READS
+        // FLUSH PENDING SINGLE MESSAGE READS
         // ----------------------------------------------
 
         if (
@@ -762,7 +874,7 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // RECONNECT
+    // RECONNECT ATTEMPT
     // ==================================================
 
     socket.io.on(
@@ -774,6 +886,10 @@ export default function useChatSocket({
         );
       },
     );
+
+    // ==================================================
+    // RECONNECT
+    // ==================================================
 
     socket.io.on(
       "reconnect",
@@ -801,6 +917,10 @@ export default function useChatSocket({
       },
     );
 
+    // ==================================================
+    // RECONNECT ERROR
+    // ==================================================
+
     socket.io.on(
       "reconnect_error",
       (error) => {
@@ -814,6 +934,18 @@ export default function useChatSocket({
     // ==================================================
     // CONVERSATION JOINED
     // ==================================================
+    //
+    // IMPORTANT:
+    // We do NOT call conversation:read immediately
+    // after socket.emit("conversation:join").
+    //
+    // We wait for server confirmation first.
+    //
+    // This prevents a race condition where backend
+    // receives conversation:read before the user has
+    // successfully joined / passed membership validation.
+    //
+    // ==================================================
 
     socket.on(
       "conversation:joined",
@@ -823,15 +955,77 @@ export default function useChatSocket({
       }: {
         conversationId: string;
       }) => {
+        const normalizedJoinedId =
+          normalizeId(
+            joinedConversationId,
+          );
+
+        if (
+          !normalizedJoinedId
+        ) {
+          return;
+        }
+
         console.log(
           "Conversation joined successfully:",
-          joinedConversationId,
+          normalizedJoinedId,
         );
 
         joinedConversationRef.current =
+          normalizedJoinedId;
+
+        // ------------------------------------------------
+        // Only mark read if this is still the currently
+        // selected conversation.
+        // ------------------------------------------------
+
+        const selectedConversationId =
+          conversationIdRef.current;
+
+        if (
+          selectedConversationId &&
           String(
-            joinedConversationId,
+            selectedConversationId,
+          ) ===
+            normalizedJoinedId
+        ) {
+          markConversationAsRead(
+            normalizedJoinedId,
           );
+        }
+      },
+    );
+
+    // ==================================================
+    // CONVERSATION LEFT
+    // ==================================================
+
+    socket.on(
+      "conversation:left",
+      ({
+        conversationId:
+          leftConversationId,
+      }: {
+        conversationId: string;
+      }) => {
+        const normalizedLeftId =
+          normalizeId(
+            leftConversationId,
+          );
+
+        if (
+          normalizedLeftId &&
+          joinedConversationRef.current ===
+            normalizedLeftId
+        ) {
+          joinedConversationRef.current =
+            null;
+        }
+
+        console.log(
+          "Conversation left:",
+          normalizedLeftId,
+        );
       },
     );
 
@@ -859,8 +1053,180 @@ export default function useChatSocket({
           currentUserIdRef.current,
         );
 
-        joinedConversationRef.current =
-          null;
+        // Only clear the joined ref if the
+        // error belongs to the currently joined
+        // conversation.
+        if (
+          error.conversationId &&
+          joinedConversationRef.current ===
+            String(
+              error.conversationId,
+            )
+        ) {
+          joinedConversationRef.current =
+            null;
+        }
+      },
+    );
+
+    // ==================================================
+    // CONVERSATION READ UPDATE
+    // ==================================================
+    //
+    // This event can arrive in two situations:
+    //
+    // 1. Current user read their own conversation
+    // 2. Another user read messages sent by current user
+    //
+    // Current user:
+    //     unreadCount = 0
+    //
+    // Other user:
+    //     update readBy for message receipts
+    //
+    // ==================================================
+
+    socket.on(
+      "conversation:read:update",
+      (
+        data: ConversationReadUpdate,
+      ) => {
+        const {
+          conversationId:
+            readConversationId,
+          userId,
+          messageIds,
+        } = data;
+
+        const normalizedConversationId =
+          normalizeId(
+            readConversationId,
+          );
+
+        const normalizedUserId =
+          normalizeId(userId);
+
+        if (
+          !normalizedConversationId ||
+          !normalizedUserId
+        ) {
+          return;
+        }
+
+        const normalizedMessageIds =
+          Array.isArray(messageIds)
+            ? messageIds.map(
+                String,
+              )
+            : [];
+
+        const currentId =
+          currentUserIdRef.current;
+
+        const isCurrentUser =
+          currentId !==
+            undefined &&
+          String(
+            currentId,
+          ) ===
+            normalizedUserId;
+
+        // ==================================================
+        // CURRENT USER READ
+        // ==================================================
+
+        if (
+          isCurrentUser
+        ) {
+          dispatch(
+            conversationApi.util.updateQueryData(
+              "getConversations",
+              undefined,
+              (draft) => {
+                const conversation =
+                  draft.find(
+                    (item) =>
+                      String(
+                        item._id,
+                      ) ===
+                      normalizedConversationId,
+                  );
+
+                if (!conversation) {
+                  return;
+                }
+
+                conversation.unreadCount =
+                  0;
+              },
+            ),
+          );
+        }
+
+        // ==================================================
+        // UPDATE MESSAGE CACHE
+        // ==================================================
+
+        if (
+          normalizedMessageIds.length >
+          0
+        ) {
+          dispatch(
+            messageApi.util.updateQueryData(
+              "getMessages",
+              {
+                conversationId:
+                  normalizedConversationId,
+
+                page: 1,
+
+                limit: 30,
+              },
+              (draft) => {
+                normalizedMessageIds.forEach(
+                  (messageId) => {
+                    const message =
+                      draft.messages.find(
+                        (item) =>
+                          String(
+                            item._id,
+                          ) ===
+                          messageId,
+                      );
+
+                    if (!message) {
+                      return;
+                    }
+
+                    if (
+                      !message.readBy
+                    ) {
+                      message.readBy =
+                        [];
+                    }
+
+                    const alreadyRead =
+                      message.readBy.some(
+                        (id) =>
+                          String(
+                            id,
+                          ) ===
+                          normalizedUserId,
+                      );
+
+                    if (
+                      !alreadyRead
+                    ) {
+                      message.readBy.push(
+                        normalizedUserId,
+                      );
+                    }
+                  },
+                );
+              },
+            ),
+          );
+        }
       },
     );
 
@@ -1007,7 +1373,7 @@ export default function useChatSocket({
           selectedConversationId;
 
         // ==================================================
-        // NORMAL MESSAGE SOUND ONLY
+        // NORMAL MESSAGE SOUND
         // ==================================================
 
         if (
@@ -1037,7 +1403,7 @@ export default function useChatSocket({
           null;
 
         // ==================================================
-        // NORMAL MESSAGE NOTIFICATION ONLY
+        // NORMAL MESSAGE NOTIFICATION
         // ==================================================
 
         if (
@@ -1069,7 +1435,7 @@ export default function useChatSocket({
         }
 
         // ==================================================
-        // NORMAL MESSAGE DELIVERY ONLY
+        // NORMAL MESSAGE DELIVERY
         // ==================================================
 
         if (
@@ -1086,7 +1452,14 @@ export default function useChatSocket({
         }
 
         // ==================================================
-        // NORMAL MESSAGE READ ONLY
+        // NORMAL MESSAGE READ
+        // ==================================================
+        //
+        // If message arrives while current conversation
+        // is open, immediately mark it as read.
+        //
+        // Therefore it will NOT increase unreadCount.
+        //
         // ==================================================
 
         if (
@@ -1179,8 +1552,12 @@ export default function useChatSocket({
                 message.createdAt;
 
               // --------------------------------------------
-              // System message should NEVER
-              // increase unread count
+              // Increase unread count
+              //
+              // Only:
+              // - normal message
+              // - incoming message
+              // - different conversation
               // --------------------------------------------
 
               if (
@@ -1246,7 +1623,9 @@ export default function useChatSocket({
         userId,
       }: {
         messageId: string;
+
         conversationId: string;
+
         userId: string;
       }) => {
         dispatch(
@@ -1304,7 +1683,7 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // READ UPDATE
+    // SINGLE MESSAGE READ UPDATE
     // ==================================================
 
     socket.on(
@@ -1316,7 +1695,9 @@ export default function useChatSocket({
         userId,
       }: {
         messageId: string;
+
         conversationId: string;
+
         userId: string;
       }) => {
         dispatch(
@@ -1577,6 +1958,7 @@ export default function useChatSocket({
         userId,
       }: {
         conversationId: string;
+
         userId: string;
       }) => {
         if (
@@ -1617,6 +1999,7 @@ export default function useChatSocket({
         userId,
       }: {
         conversationId: string;
+
         userId: string;
       }) => {
         if (
@@ -1719,6 +2102,7 @@ export default function useChatSocket({
     currentUserId,
     dispatch,
     joinConversation,
+    markConversationAsRead,
     markMessageAsRead,
     playIncomingMessageSound,
   ]);
@@ -1953,6 +2337,8 @@ export default function useChatSocket({
     sendTypingStop,
 
     markMessageAsRead,
+
+    markConversationAsRead,
 
     deleteMessageRealtime,
 

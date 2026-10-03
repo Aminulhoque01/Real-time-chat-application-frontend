@@ -1,9 +1,62 @@
 @import "tailwindcss";
 
+/* =========================================================
+   THEME VARIABLES
+========================================================= */
+
 :root {
+  color-scheme: light;
+
   --background: #f8fafc;
   --foreground: #0f172a;
+
+  --surface: #ffffff;
+  --surface-secondary: #f8fafc;
+  --surface-tertiary: #f1f5f9;
+
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --input-background: #ffffff;
+
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-thumb-hover: #94a3b8;
 }
+
+/* =========================================================
+   DARK THEME
+========================================================= */
+
+html.dark {
+  color-scheme: dark;
+
+  --background: #0f172a;
+  --foreground: #f8fafc;
+
+  --surface: #111827;
+  --surface-secondary: #1e293b;
+  --surface-tertiary: #334155;
+
+  --border: #334155;
+  --border-strong: #475569;
+
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+
+  --input-background: #1e293b;
+
+  --scrollbar-thumb: #475569;
+  --scrollbar-thumb-hover: #64748b;
+}
+
+/* =========================================================
+   GLOBAL RESET
+========================================================= */
 
 * {
   box-sizing: border-box;
@@ -17,21 +70,170 @@ body {
   min-height: 100%;
 }
 
+html {
+  min-height: 100%;
+  background: var(--background);
+  transition: background-color 0.2s ease;
+}
+
 body {
+  min-height: 100vh;
   background: var(--background);
   color: var(--foreground);
+
   font-family: Arial, Helvetica, sans-serif;
+
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
+
+/* =========================================================
+   FORM ELEMENTS
+========================================================= */
 
 button,
 input,
-textarea {
+textarea,
+select {
   font: inherit;
 }
 
 button {
   cursor: pointer;
 }
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: var(--input-background);
+  color: var(--text-primary);
+  border-color: var(--border);
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: var(--text-muted);
+}
+
+/* =========================================================
+   GLOBAL DARK MODE OVERRIDES
+   ---------------------------------------------------------
+   Existing components can keep using Tailwind classes.
+   We don't need to add dark: classes everywhere.
+========================================================= */
+
+/* ---------- WHITE BACKGROUNDS ---------- */
+
+html.dark .bg-white {
+  background-color: var(--surface) !important;
+}
+
+/* ---------- LIGHT BACKGROUNDS ---------- */
+
+html.dark .bg-gray-50,
+html.dark .bg-slate-50 {
+  background-color: var(--surface-secondary) !important;
+}
+
+html.dark .bg-gray-100,
+html.dark .bg-slate-100 {
+  background-color: var(--surface-tertiary) !important;
+}
+
+html.dark .bg-gray-200,
+html.dark .bg-slate-200 {
+  background-color: #475569 !important;
+}
+
+/* ---------- TEXT COLORS ---------- */
+
+html.dark .text-black {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-gray-900,
+html.dark .text-gray-800,
+html.dark .text-gray-700,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-slate-700 {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-gray-600,
+html.dark .text-gray-500,
+html.dark .text-slate-600,
+html.dark .text-slate-500 {
+  color: var(--text-secondary) !important;
+}
+
+html.dark .text-gray-400,
+html.dark .text-gray-300,
+html.dark .text-slate-400,
+html.dark .text-slate-300 {
+  color: var(--text-muted) !important;
+}
+
+/* ---------- BORDERS ---------- */
+
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-slate-100,
+html.dark .border-slate-200 {
+  border-color: var(--border) !important;
+}
+
+html.dark .border-gray-300,
+html.dark .border-slate-300 {
+  border-color: var(--border-strong) !important;
+}
+
+/* ---------- DIVIDERS ---------- */
+
+html.dark .divide-gray-100 > :not(:last-child),
+html.dark .divide-gray-200 > :not(:last-child),
+html.dark .divide-slate-100 > :not(:last-child),
+html.dark .divide-slate-200 > :not(:last-child) {
+  border-color: var(--border) !important;
+}
+
+/* ---------- COMMON HOVER BACKGROUNDS ---------- */
+
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-slate-50:hover {
+  background-color: var(--surface-secondary) !important;
+}
+
+html.dark .hover\:bg-gray-100:hover,
+html.dark .hover\:bg-slate-100:hover {
+  background-color: var(--surface-tertiary) !important;
+}
+
+html.dark .hover\:bg-gray-200:hover,
+html.dark .hover\:bg-slate-200:hover {
+  background-color: #475569 !important;
+}
+
+/* ---------- HOVER TEXT ---------- */
+
+html.dark .hover\:text-gray-900:hover,
+html.dark .hover\:text-gray-800:hover,
+html.dark .hover\:text-slate-900:hover,
+html.dark .hover\:text-slate-800:hover {
+  color: var(--text-primary) !important;
+}
+
+/* ---------- RINGS ---------- */
+
+html.dark .ring-gray-200,
+html.dark .ring-slate-200 {
+  --tw-ring-color: var(--border) !important;
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -43,15 +245,57 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: var(--scrollbar-thumb-hover);
 }
 
- 
+/* Firefox */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color:
+    var(--scrollbar-thumb)
+    transparent;
+}
+
+/* =========================================================
+   SELECTION
+========================================================= */
+
+::selection {
+  background: #3b82f6;
+  color: #ffffff;
+}
+
+/* =========================================================
+   THEME TRANSITION
+========================================================= */
+
+body,
+button,
+input,
+textarea,
+select,
+div,
+section,
+aside,
+header,
+main,
+footer {
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* =========================================================
+   NOTIFICATION ANIMATION
+========================================================= */
+
 @keyframes notification-progress {
   from {
     transform: scaleX(1);
@@ -61,4 +305,3 @@ button {
     transform: scaleX(0);
   }
 }
- 
