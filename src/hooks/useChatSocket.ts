@@ -1,4 +1,2468 @@
  
+// "use client";
+
+// import {
+//   useCallback,
+//   useEffect,
+//   useRef,
+// } from "react";
+
+// import {
+//   io,
+//   Socket,
+// } from "socket.io-client";
+
+// import {
+//   useAppDispatch,
+//   useAppSelector,
+// } from "@/src/redux/hooks";
+
+// import { messageApi } from "@/src/redux/features/message/messageApi";
+
+// import { conversationApi } from "@/src/redux/features/conversation/conversationApi";
+
+// import type { Message } from "@/src/redux/features/message/message.types";
+
+// import {
+//   emitChatNotification,
+// } from "../lib/chat-notification";
+
+// // ======================================================
+// // TYPES
+// // ======================================================
+
+// interface ChatSocketProps {
+//   conversationId: string | null;
+
+//   onTypingStart?: (
+//     userId: string,
+//   ) => void;
+
+//   onTypingStop?: (
+//     userId: string,
+//   ) => void;
+
+//   onUserBlocked?: (data: {
+//     blockerId: string;
+//     blockedId: string;
+//   }) => void;
+
+//   onUserUnblocked?: (data: {
+//     blockerId: string;
+//     blockedId: string;
+//   }) => void;
+// }
+
+// // ======================================================
+// // POPULATED SENDER
+// // ======================================================
+
+// interface PopulatedSender {
+//   _id:
+//     | string
+//     | {
+//         toString(): string;
+//       };
+
+//   phone?: string;
+
+//   name?: string;
+
+//   avatar?: string | null;
+
+//   avatarUrl?: string | null;
+
+//   bio?: string | null;
+
+//   isOnline?: boolean;
+
+//   lastSeen?:
+//     | string
+//     | Date
+//     | null;
+// }
+
+// // ======================================================
+// // REACTION TYPES
+// // ======================================================
+
+// interface ReactionUser {
+//   userId: string;
+
+//   name: string;
+// }
+
+// interface ReactionSummary {
+//   emoji: string;
+
+//   count: number;
+
+//   users: ReactionUser[];
+// }
+
+// interface MessageReactionUpdate {
+//   messageId: string;
+
+//   conversationId: string;
+
+//   action:
+//     | "added"
+//     | "removed";
+
+//   reactionSummary: ReactionSummary[];
+// }
+
+// // ======================================================
+// // BLOCK TYPES
+// // ======================================================
+
+// interface UserBlockedEvent {
+//   blockerId: string;
+
+//   blockedId: string;
+// }
+
+// interface UserUnblockedEvent {
+//   blockerId: string;
+
+//   blockedId: string;
+// }
+
+// // ======================================================
+// // HELPER
+// // ======================================================
+
+// const normalizeId = (
+//   value: unknown,
+// ): string | null => {
+//   if (
+//     value === null ||
+//     value === undefined ||
+//     value === ""
+//   ) {
+//     return null;
+//   }
+
+//   if (
+//     typeof value === "string"
+//   ) {
+//     return value;
+//   }
+
+//   if (
+//     typeof value === "object" &&
+//     value !== null &&
+//     "_id" in value
+//   ) {
+//     const id = (
+//       value as {
+//         _id?: unknown;
+//       }
+//     )._id;
+
+//     if (
+//       id !== null &&
+//       id !== undefined &&
+//       id !== ""
+//     ) {
+//       return String(id);
+//     }
+//   }
+
+//   return String(value);
+// };
+
+// // ======================================================
+// // GET POPULATED SENDER
+// // ======================================================
+
+// const getPopulatedSender = (
+//   message: Message,
+// ): PopulatedSender | null => {
+//   if (
+//     !message.senderId ||
+//     typeof message.senderId !==
+//       "object"
+//   ) {
+//     return null;
+//   }
+
+//   return message.senderId as unknown as PopulatedSender;
+// };
+
+// // ======================================================
+// // NOTIFICATION BODY
+// // ======================================================
+
+// const getNotificationBody = (
+//   message: Message,
+// ): string => {
+//   if (
+//     message.text &&
+//     message.text.trim()
+//   ) {
+//     return message.text.trim();
+//   }
+
+//   if (
+//     message.attachments &&
+//     message.attachments.length >
+//       0
+//   ) {
+//     const attachment =
+//       message.attachments[0];
+
+//     switch (
+//       attachment.type
+//     ) {
+//       case "image":
+//         return "📷 Photo";
+
+//       case "video":
+//         return "🎥 Video";
+
+//       case "audio":
+//         return "🎤 Voice message";
+
+//       case "file":
+//         return "📎 File";
+
+//       default:
+//         return "New attachment";
+//     }
+//   }
+
+//   return "New message";
+// };
+
+// // ======================================================
+// // HOOK
+// // ======================================================
+
+// export default function useChatSocket({
+//   conversationId,
+
+//   onTypingStart,
+
+//   onTypingStop,
+
+//   onUserBlocked,
+
+//   onUserUnblocked,
+// }: ChatSocketProps) {
+//   const dispatch =
+//     useAppDispatch();
+
+//   // ====================================================
+//   // AUTH
+//   // ====================================================
+
+//   const token =
+//     useAppSelector(
+//       (state) =>
+//         state.auth.token,
+//     );
+
+//   const currentUserId =
+//     useAppSelector(
+//       (state) =>
+//         state.auth.user?._id,
+//     );
+
+//   // ====================================================
+//   // SOCKET REF
+//   // ====================================================
+
+//   const socketRef =
+//     useRef<Socket | null>(
+//       null,
+//     );
+
+//   // ====================================================
+//   // JOINED CONVERSATION
+//   // ====================================================
+
+//   const joinedConversationRef =
+//     useRef<string | null>(
+//       null,
+//     );
+
+//   // ====================================================
+//   // CURRENT VALUE REFS
+//   // ====================================================
+
+//   const conversationIdRef =
+//     useRef<string | null>(
+//       conversationId,
+//     );
+
+//   const currentUserIdRef =
+//     useRef<string | undefined>(
+//       currentUserId,
+//     );
+
+//   // ====================================================
+//   // CALLBACK REFS
+//   // ====================================================
+
+//   const onTypingStartRef =
+//     useRef<
+//       | ((
+//           userId: string,
+//         ) => void)
+//       | undefined
+//     >(onTypingStart);
+
+//   const onTypingStopRef =
+//     useRef<
+//       | ((
+//           userId: string,
+//         ) => void)
+//       | undefined
+//     >(onTypingStop);
+
+//   const onUserBlockedRef =
+//     useRef<
+//       | ((
+//           data: UserBlockedEvent,
+//         ) => void)
+//       | undefined
+//     >(onUserBlocked);
+
+//   const onUserUnblockedRef =
+//     useRef<
+//       | ((
+//           data: UserUnblockedEvent,
+//         ) => void)
+//       | undefined
+//     >(onUserUnblocked);
+
+//   // ====================================================
+//   // CURRENT CONVERSATION REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     conversationIdRef.current =
+//       conversationId;
+//   }, [conversationId]);
+
+//   // ====================================================
+//   // CURRENT USER REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     currentUserIdRef.current =
+//       currentUserId;
+//   }, [currentUserId]);
+
+//   // ====================================================
+//   // TYPING START CALLBACK REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     onTypingStartRef.current =
+//       onTypingStart;
+//   }, [onTypingStart]);
+
+//   // ====================================================
+//   // TYPING STOP CALLBACK REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     onTypingStopRef.current =
+//       onTypingStop;
+//   }, [onTypingStop]);
+
+//   // ====================================================
+//   // USER BLOCKED CALLBACK REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     onUserBlockedRef.current =
+//       onUserBlocked;
+//   }, [onUserBlocked]);
+
+//   // ====================================================
+//   // USER UNBLOCKED CALLBACK REF
+//   // ====================================================
+
+//   useEffect(() => {
+//     onUserUnblockedRef.current =
+//       onUserUnblocked;
+//   }, [onUserUnblocked]);
+
+//   // ====================================================
+//   // INCOMING AUDIO
+//   // ====================================================
+
+//   const incomingAudioRef =
+//     useRef<HTMLAudioElement | null>(
+//       null,
+//     );
+
+//   // ====================================================
+//   // INITIALIZE INCOMING AUDIO
+//   // ====================================================
+
+//   useEffect(() => {
+//     if (
+//       typeof window ===
+//       "undefined"
+//     ) {
+//       return;
+//     }
+
+//     const audio =
+//       new Audio(
+//         "/incoming.mp3",
+//       );
+
+//     audio.preload =
+//       "auto";
+
+//     audio.volume = 0.55;
+
+//     incomingAudioRef.current =
+//       audio;
+
+//     console.log(
+//       "🔊 Incoming audio initialized.",
+//     );
+
+//     return () => {
+//       audio.pause();
+
+//       audio.currentTime = 0;
+
+//       incomingAudioRef.current =
+//         null;
+//     };
+//   }, []);
+
+//   // ====================================================
+//   // PLAY INCOMING MESSAGE SOUND
+//   // ====================================================
+
+//   const playIncomingMessageSound =
+//     useCallback(() => {
+//       if (
+//         typeof window ===
+//         "undefined"
+//       ) {
+//         return;
+//       }
+
+//       const audio =
+//         incomingAudioRef.current;
+
+//       if (!audio) {
+//         console.warn(
+//           "Incoming audio is not initialized.",
+//         );
+
+//         return;
+//       }
+
+//       try {
+//         audio.pause();
+
+//         audio.currentTime = 0;
+
+//         const playPromise =
+//           audio.play();
+
+//         if (
+//           playPromise !==
+//           undefined
+//         ) {
+//           playPromise.catch(
+//             (error) => {
+//               console.warn(
+//                 "Unable to play incoming message sound:",
+//                 error,
+//               );
+//             },
+//           );
+//         }
+//       } catch (error) {
+//         console.error(
+//           "Incoming message sound error:",
+//           error,
+//         );
+//       }
+//     }, []);
+
+//   // ====================================================
+//   // PENDING READ MESSAGE IDS
+//   // ====================================================
+
+//   const pendingReadMessageIds =
+//     useRef<Set<string>>(
+//       new Set(),
+//     );
+
+//   // ====================================================
+//   // MARK MESSAGE AS READ
+//   // ====================================================
+
+//   const markMessageAsRead =
+//     useCallback(
+//       (
+//         messageId: string,
+//       ) => {
+//         if (!messageId) {
+//           return;
+//         }
+
+//         const normalizedMessageId =
+//           String(messageId);
+
+//         const socket =
+//           socketRef.current;
+
+//         // ----------------------------------------------
+//         // SOCKET UNAVAILABLE
+//         // ----------------------------------------------
+
+//         if (!socket) {
+//           pendingReadMessageIds.current.add(
+//             normalizedMessageId,
+//           );
+
+//           console.log(
+//             "READ QUEUED - socket unavailable:",
+//             normalizedMessageId,
+//           );
+
+//           return;
+//         }
+
+//         // ----------------------------------------------
+//         // SOCKET NOT CONNECTED
+//         // ----------------------------------------------
+
+//         if (!socket.connected) {
+//           pendingReadMessageIds.current.add(
+//             normalizedMessageId,
+//           );
+
+//           console.log(
+//             "READ QUEUED - socket not connected:",
+//             normalizedMessageId,
+//           );
+
+//           return;
+//         }
+
+//         // ----------------------------------------------
+//         // EMIT READ
+//         // ----------------------------------------------
+
+//         socket.emit(
+//           "message:read",
+//           {
+//             messageId:
+//               normalizedMessageId,
+//           },
+//         );
+
+//         console.log(
+//           "MESSAGE READ EMITTED:",
+//           normalizedMessageId,
+//         );
+//       },
+//       [],
+//     );
+
+//   // ====================================================
+//   // MANUAL DISCONNECT
+//   // ====================================================
+
+//   const disconnectSocket =
+//     useCallback(() => {
+//       const socket =
+//         socketRef.current;
+
+//       if (!socket) {
+//         console.log(
+//           "Socket already disconnected.",
+//         );
+
+//         return;
+//       }
+
+//       console.log(
+//         "Manually disconnecting socket:",
+//         socket.id,
+//       );
+
+//       // ----------------------------------------------
+//       // LEAVE CURRENT CONVERSATION
+//       // ----------------------------------------------
+
+//       if (
+//         joinedConversationRef.current &&
+//         socket.connected
+//       ) {
+//         socket.emit(
+//           "conversation:leave",
+//           {
+//             conversationId:
+//               joinedConversationRef.current,
+//           },
+//         );
+
+//         console.log(
+//           "Leaving conversation before logout:",
+//           joinedConversationRef.current,
+//         );
+//       }
+
+//       // ----------------------------------------------
+//       // REMOVE LISTENERS
+//       // ----------------------------------------------
+
+//       socket.removeAllListeners();
+
+//       socket.io.removeAllListeners();
+
+//       // ----------------------------------------------
+//       // DISCONNECT
+//       // ----------------------------------------------
+
+//       socket.disconnect();
+
+//       // ----------------------------------------------
+//       // RESET REFS
+//       // ----------------------------------------------
+
+//       socketRef.current =
+//         null;
+
+//       joinedConversationRef.current =
+//         null;
+
+//       conversationIdRef.current =
+//         null;
+
+//       pendingReadMessageIds.current.clear();
+
+//       console.log(
+//         "Socket manually disconnected successfully.",
+//       );
+//     }, []);
+
+//   // ====================================================
+//   // SOCKET CONNECTION
+//   // ====================================================
+
+//   useEffect(() => {
+//     if (
+//       !token ||
+//       !currentUserId
+//     ) {
+//       return;
+//     }
+
+//     const socketUrl =
+//       process.env
+//         .NEXT_PUBLIC_SOCKET_URL ||
+//       "http://localhost:5000";
+
+//     // ==================================================
+//     // CREATE SOCKET
+//     // ==================================================
+
+//     const socket =
+//       io(
+//         socketUrl,
+//         {
+//           auth: {
+//             token,
+//           },
+
+//           withCredentials:
+//             true,
+
+//           reconnection:
+//             true,
+
+//           reconnectionAttempts:
+//             Infinity,
+
+//           reconnectionDelay:
+//             1000,
+
+//           reconnectionDelayMax:
+//             5000,
+
+//           randomizationFactor:
+//             0.5,
+//         },
+//       );
+
+//     socketRef.current =
+//       socket;
+
+//     // ==================================================
+//     // CONNECT
+//     // ==================================================
+
+//     socket.on(
+//       "connect",
+//       () => {
+//         console.log(
+//           "Socket connected:",
+//           socket.id,
+//         );
+
+//         console.log(
+//           "Socket transport:",
+//           socket.io.engine
+//             .transport.name,
+//         );
+
+//         // ==============================================
+//         // REJOIN CURRENT CONVERSATION
+//         // ==============================================
+
+//         const selectedConversationId =
+//           conversationIdRef.current;
+
+//         if (
+//           selectedConversationId
+//         ) {
+//           socket.emit(
+//             "conversation:join",
+//             {
+//               conversationId:
+//                 selectedConversationId,
+//             },
+//           );
+
+//           joinedConversationRef.current =
+//             selectedConversationId;
+
+//           console.log(
+//             "Joining conversation:",
+//             selectedConversationId,
+//           );
+//         }
+
+//         // ==============================================
+//         // FLUSH PENDING READS
+//         // ==============================================
+
+//         if (
+//           pendingReadMessageIds
+//             .current.size > 0
+//         ) {
+//           const pendingIds =
+//             Array.from(
+//               pendingReadMessageIds.current,
+//             );
+
+//           console.log(
+//             "Flushing pending read messages:",
+//             pendingIds,
+//           );
+
+//           pendingIds.forEach(
+//             (
+//               messageId,
+//             ) => {
+//               socket.emit(
+//                 "message:read",
+//                 {
+//                   messageId,
+//                 },
+//               );
+
+//               console.log(
+//                 "Pending message marked as read:",
+//                 messageId,
+//               );
+//             },
+//           );
+
+//           pendingReadMessageIds.current.clear();
+//         }
+//       },
+//     );
+
+//     // ==================================================
+//     // RECONNECT ATTEMPT
+//     // ==================================================
+
+//     socket.io.on(
+//       "reconnect_attempt",
+//       (attempt) => {
+//         console.log(
+//           "Socket reconnect attempt:",
+//           attempt,
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // RECONNECT ERROR
+//     // ==================================================
+
+//     socket.io.on(
+//       "reconnect_error",
+//       (error) => {
+//         console.error(
+//           "Socket reconnect error:",
+//           error.message,
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // RECONNECT SUCCESS
+//     // ==================================================
+
+//     socket.io.on(
+//       "reconnect",
+//       (attempt) => {
+//         console.log(
+//           "Socket reconnected successfully:",
+//           {
+//             socketId:
+//               socket.id,
+
+//             attempt,
+//           },
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // CONVERSATION JOINED
+//     // ==================================================
+
+//     socket.on(
+//       "conversation:joined",
+//       ({
+//         conversationId:
+//           joinedConversationId,
+//       }: {
+//         conversationId: string;
+//       }) => {
+//         console.log(
+//           "Conversation joined:",
+//           joinedConversationId,
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // CONVERSATION ERROR
+//     // ==================================================
+
+//     socket.on(
+//       "conversation:error",
+//       (error) => {
+//         console.error(
+//           "Conversation error:",
+//           error,
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // USER BLOCKED
+//     // ==================================================
+
+//     socket.on(
+//       "user:blocked",
+//       ({
+//         blockerId,
+//         blockedId,
+//       }: UserBlockedEvent) => {
+//         console.log(
+//           "USER BLOCKED EVENT RECEIVED:",
+//           {
+//             blockerId,
+//             blockedId,
+//           },
+//         );
+
+//         const normalizedCurrentUserId =
+//           currentUserIdRef.current
+//             ? String(
+//                 currentUserIdRef.current,
+//               )
+//             : null;
+
+//         if (
+//           !normalizedCurrentUserId
+//         ) {
+//           return;
+//         }
+
+//         if (
+//           String(blockedId) !==
+//           normalizedCurrentUserId
+//         ) {
+//           return;
+//         }
+
+//         console.log(
+//           "CURRENT USER WAS BLOCKED BY:",
+//           blockerId,
+//         );
+
+//         onUserBlockedRef.current?.({
+//           blockerId:
+//             String(blockerId),
+
+//           blockedId:
+//             String(blockedId),
+//         });
+//       },
+//     );
+
+//     // ==================================================
+//     // USER UNBLOCKED
+//     // ==================================================
+
+//     socket.on(
+//       "user:unblocked",
+//       ({
+//         blockerId,
+//         blockedId,
+//       }: UserUnblockedEvent) => {
+//         console.log(
+//           "USER UNBLOCKED EVENT RECEIVED:",
+//           {
+//             blockerId,
+//             blockedId,
+//           },
+//         );
+
+//         const normalizedCurrentUserId =
+//           currentUserIdRef.current
+//             ? String(
+//                 currentUserIdRef.current,
+//               )
+//             : null;
+
+//         if (
+//           !normalizedCurrentUserId
+//         ) {
+//           return;
+//         }
+
+//         if (
+//           String(blockedId) !==
+//           normalizedCurrentUserId
+//         ) {
+//           return;
+//         }
+
+//         console.log(
+//           "CURRENT USER WAS UNBLOCKED BY:",
+//           blockerId,
+//         );
+
+//         onUserUnblockedRef.current?.({
+//           blockerId:
+//             String(blockerId),
+
+//           blockedId:
+//             String(blockedId),
+//         });
+//       },
+//     );
+
+//     // ==================================================
+//     // NEW MESSAGE
+//     // ==================================================
+
+//     socket.on(
+//       "message:new",
+//       (message: Message) => {
+//         console.log(
+//           "REALTIME MESSAGE RECEIVED:",
+//           message,
+//         );
+
+//         // ==============================================
+//         // MESSAGE ID
+//         // ==============================================
+
+//         const messageId =
+//           normalizeId(
+//             message._id,
+//           );
+
+//         if (!messageId) {
+//           console.error(
+//             "MESSAGE:new - messageId missing:",
+//             message,
+//           );
+
+//           return;
+//         }
+
+//         // ==============================================
+//         // CONVERSATION ID
+//         // ==============================================
+
+//         const messageConversationId =
+//           normalizeId(
+//             message.conversationId,
+//           );
+
+//         if (
+//           !messageConversationId
+//         ) {
+//           console.error(
+//             "MESSAGE:new - conversationId missing:",
+//             message,
+//           );
+
+//           return;
+//         }
+
+//         // ==============================================
+//         // CURRENTLY SELECTED CONVERSATION
+//         // ==============================================
+
+//         const selectedConversationId =
+//           conversationIdRef.current
+//             ? String(
+//                 conversationIdRef.current,
+//               )
+//             : null;
+
+//         // ==============================================
+//         // SENDER ID
+//         // ==============================================
+
+//         const normalizedSenderId =
+//           normalizeId(
+//             message.senderId,
+//           );
+
+//         // ==============================================
+//         // CURRENT USER ID
+//         // ==============================================
+
+//         const normalizedCurrentUserId =
+//           currentUserIdRef.current
+//             ? String(
+//                 currentUserIdRef.current,
+//               )
+//             : null;
+
+//         // ==============================================
+//         // OWN MESSAGE
+//         // ==============================================
+
+//         const isOwnMessage =
+//           normalizedSenderId !==
+//             null &&
+//           normalizedCurrentUserId !==
+//             null &&
+//           normalizedSenderId ===
+//             normalizedCurrentUserId;
+
+//         // ==============================================
+//         // CURRENT CONVERSATION
+//         // ==============================================
+
+//         const isCurrentConversation =
+//           messageConversationId ===
+//           selectedConversationId;
+
+//         // ==============================================
+//         // INCOMING SOUND
+//         // ==============================================
+
+//         if (
+//           !isOwnMessage &&
+//           isCurrentConversation
+//         ) {
+//           playIncomingMessageSound();
+
+//           console.log(
+//             "🔊 INCOMING MESSAGE SOUND PLAYED:",
+//             {
+//               messageId,
+
+//               conversationId:
+//                 messageConversationId,
+//             },
+//           );
+//         }
+
+//         // ==============================================
+//         // SENDER
+//         // ==============================================
+
+//         const sender =
+//           getPopulatedSender(
+//             message,
+//           );
+
+//         const senderName =
+//           sender?.name ||
+//           "New Message";
+
+//         const senderAvatar =
+//           sender?.avatar ||
+//           sender?.avatarUrl ||
+//           null;
+
+//         // ==============================================
+//         // DEBUG
+//         // ==============================================
+
+//         console.log(
+//           "🔔 MESSAGE CHECK:",
+//           {
+//             messageConversationId,
+
+//             selectedConversationId,
+
+//             messageSenderId:
+//               normalizedSenderId,
+
+//             normalizedCurrentUserId,
+
+//             senderName,
+
+//             senderAvatar,
+
+//             isOwnMessage,
+
+//             isCurrentConversation,
+//           },
+//         );
+
+//         // ==============================================
+//         // IN-SITE NOTIFICATION
+//         // ==============================================
+//         //
+//         // Notification ONLY when current user is
+//         // NOT inside this conversation.
+//         //
+
+//         if (
+//           !isOwnMessage &&
+//           !isCurrentConversation &&
+//           typeof window !==
+//             "undefined"
+//         ) {
+//           const notificationBody =
+//             getNotificationBody(
+//               message,
+//             );
+
+//           emitChatNotification({
+//             title:
+//               senderName,
+
+//             body:
+//               notificationBody,
+
+//             conversationId:
+//               messageConversationId,
+
+//             messageId,
+
+//             senderId:
+//               normalizedSenderId,
+
+//             senderAvatar,
+//           });
+
+//           console.log(
+//             "🔔 IN-SITE NOTIFICATION SENT:",
+//             {
+//               title:
+//                 senderName,
+
+//               body:
+//                 notificationBody,
+
+//               conversationId:
+//                 messageConversationId,
+
+//               messageId,
+
+//               senderId:
+//                 normalizedSenderId,
+
+//               senderAvatar,
+//             },
+//           );
+//         }
+
+//         // ==============================================
+//         // MESSAGE DELIVERY
+//         // ==============================================
+
+//         if (
+//           normalizedSenderId &&
+//           !isOwnMessage
+//         ) {
+//           socket.emit(
+//             "message:delivered",
+//             {
+//               messageId,
+//             },
+//           );
+
+//           console.log(
+//             "Message delivered:",
+//             messageId,
+//           );
+//         }
+
+//         // ==============================================
+//         // MESSAGE READ
+//         // ==============================================
+
+//         if (
+//           normalizedSenderId &&
+//           !isOwnMessage &&
+//           isCurrentConversation
+//         ) {
+//           markMessageAsRead(
+//             messageId,
+//           );
+
+//           console.log(
+//             "Message read:",
+//             messageId,
+//           );
+//         }
+
+//         // ==============================================
+//         // MESSAGE CACHE
+//         // ==============================================
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 messageConversationId,
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const exists =
+//                 draft.messages.some(
+//                   (
+//                     existingMessage,
+//                   ) =>
+//                     String(
+//                       existingMessage._id,
+//                     ) === messageId,
+//                 );
+
+//               if (exists) {
+//                 console.log(
+//                   "MESSAGE CACHE: Duplicate message ignored:",
+//                   messageId,
+//                 );
+
+//                 return;
+//               }
+
+//               draft.messages.push(
+//                 message,
+//               );
+
+//               draft.messages.sort(
+//                 (a, b) =>
+//                   new Date(
+//                     a.createdAt,
+//                   ).getTime() -
+//                   new Date(
+//                     b.createdAt,
+//                   ).getTime(),
+//               );
+//             },
+//           ),
+//         );
+
+//         // ==============================================
+//         // SIDEBAR CACHE
+//         // ==============================================
+
+//         dispatch(
+//           conversationApi.util.updateQueryData(
+//             "getConversations",
+//             undefined,
+//             (draft) => {
+//               const conversation =
+//                 draft.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     messageConversationId,
+//                 );
+
+//               if (!conversation) {
+//                 return;
+//               }
+
+//               // ========================================
+//               // LAST MESSAGE
+//               // ========================================
+
+//               conversation.lastMessage =
+//                 message as typeof conversation.lastMessage;
+
+//               // ========================================
+//               // UPDATED TIME
+//               // ========================================
+
+//               conversation.updatedAt =
+//                 message.updatedAt ||
+//                 message.createdAt;
+
+//               // ========================================
+//               // UNREAD COUNT
+//               // ========================================
+
+//               if (
+//                 !isOwnMessage &&
+//                 !isCurrentConversation
+//               ) {
+//                 conversation.unreadCount =
+//                   (
+//                     conversation.unreadCount ||
+//                     0
+//                   ) + 1;
+//               }
+
+//               // ========================================
+//               // MOVE TO TOP
+//               // ========================================
+
+//               const currentIndex =
+//                 draft.findIndex(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     messageConversationId,
+//                 );
+
+//               if (
+//                 currentIndex >
+//                 0
+//               ) {
+//                 const [
+//                   updatedConversation,
+//                 ] =
+//                   draft.splice(
+//                     currentIndex,
+//                     1,
+//                   );
+
+//                 if (
+//                   updatedConversation
+//                 ) {
+//                   draft.unshift(
+//                     updatedConversation,
+//                   );
+//                 }
+//               }
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // MESSAGE DELIVERY UPDATE
+//     // ==================================================
+
+//     socket.on(
+//       "message:delivery:update",
+//       ({
+//         messageId,
+
+//         conversationId:
+//           deliveryConversationId,
+
+//         userId,
+//       }: {
+//         messageId: string;
+
+//         conversationId: string;
+
+//         userId: string;
+//       }) => {
+//         console.log(
+//           "MESSAGE DELIVERY UPDATE:",
+//           {
+//             messageId,
+
+//             conversationId:
+//               deliveryConversationId,
+
+//             userId,
+//           },
+//         );
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 String(
+//                   deliveryConversationId,
+//                 ),
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const message =
+//                 draft.messages.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     String(
+//                       messageId,
+//                     ),
+//                 );
+
+//               if (!message) {
+//                 console.log(
+//                   "DELIVERY UPDATE: Message not found in cache",
+//                   messageId,
+//                 );
+
+//                 return;
+//               }
+
+//               if (
+//                 !message.deliveredTo
+//               ) {
+//                 message.deliveredTo =
+//                   [];
+//               }
+
+//               const alreadyDelivered =
+//                 message.deliveredTo.some(
+//                   (id) =>
+//                     String(id) ===
+//                     String(userId),
+//                 );
+
+//               if (
+//                 alreadyDelivered
+//               ) {
+//                 return;
+//               }
+
+//               message.deliveredTo.push(
+//                 userId,
+//               );
+
+//               console.log(
+//                 "DELIVERY UPDATE: deliveredTo updated",
+//                 {
+//                   messageId,
+
+//                   userId,
+
+//                   deliveredTo:
+//                     message.deliveredTo,
+//                 },
+//               );
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // MESSAGE READ UPDATE
+//     // ==================================================
+
+//     socket.on(
+//       "message:read:update",
+//       ({
+//         messageId,
+
+//         conversationId:
+//           readConversationId,
+
+//         userId,
+//       }: {
+//         messageId: string;
+
+//         conversationId: string;
+
+//         userId: string;
+//       }) => {
+//         console.log(
+//           "MESSAGE READ UPDATE:",
+//           {
+//             messageId,
+
+//             conversationId:
+//               readConversationId,
+
+//             userId,
+//           },
+//         );
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 String(
+//                   readConversationId,
+//                 ),
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const message =
+//                 draft.messages.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     String(
+//                       messageId,
+//                     ),
+//                 );
+
+//               if (!message) {
+//                 console.log(
+//                   "READ UPDATE: Message not found in cache",
+//                   messageId,
+//                 );
+
+//                 return;
+//               }
+
+//               if (
+//                 !message.readBy
+//               ) {
+//                 message.readBy =
+//                   [];
+//               }
+
+//               const alreadyRead =
+//                 message.readBy.some(
+//                   (id) =>
+//                     String(id) ===
+//                     String(userId),
+//                 );
+
+//               if (
+//                 alreadyRead
+//               ) {
+//                 return;
+//               }
+
+//               message.readBy.push(
+//                 userId,
+//               );
+
+//               console.log(
+//                 "READ UPDATE: readBy updated",
+//                 {
+//                   messageId,
+
+//                   userId,
+
+//                   readBy:
+//                     message.readBy,
+//                 },
+//               );
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // MESSAGE EDITED
+//     // ==================================================
+
+//     socket.on(
+//       "message:edited",
+//       (message: Message) => {
+//         console.log(
+//           "MESSAGE EDITED UPDATE:",
+//           message,
+//         );
+
+//         const messageConversationId =
+//           normalizeId(
+//             message.conversationId,
+//           );
+
+//         if (
+//           !messageConversationId
+//         ) {
+//           return;
+//         }
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 messageConversationId,
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const existingMessage =
+//                 draft.messages.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     String(
+//                       message._id,
+//                     ),
+//                 );
+
+//               if (
+//                 !existingMessage
+//               ) {
+//                 console.log(
+//                   "EDIT UPDATE: Message not found in cache",
+//                   message._id,
+//                 );
+
+//                 return;
+//               }
+
+//               existingMessage.text =
+//                 message.text;
+
+//               existingMessage.isEdited =
+//                 message.isEdited;
+
+//               existingMessage.updatedAt =
+//                 message.updatedAt;
+
+//               console.log(
+//                 "EDIT UPDATE: Message updated",
+//                 message._id,
+//               );
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // MESSAGE DELETED
+//     // ==================================================
+
+//     socket.on(
+//       "message:deleted",
+//       ({
+//         messageId,
+
+//         conversationId:
+//           deletedConversationId,
+
+//         isDeleted,
+
+//         deletedAt,
+//       }: {
+//         messageId: string;
+
+//         conversationId: string;
+
+//         isDeleted: boolean;
+
+//         deletedAt?:
+//           | string
+//           | null;
+//       }) => {
+//         console.log(
+//           "MESSAGE DELETED UPDATE:",
+//           {
+//             messageId,
+
+//             conversationId:
+//               deletedConversationId,
+
+//             isDeleted,
+
+//             deletedAt,
+//           },
+//         );
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 String(
+//                   deletedConversationId,
+//                 ),
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const message =
+//                 draft.messages.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     String(
+//                       messageId,
+//                     ),
+//                 );
+
+//               if (!message) {
+//                 console.log(
+//                   "DELETE UPDATE: Message not found in cache",
+//                   messageId,
+//                 );
+
+//                 return;
+//               }
+
+//               message.isDeleted =
+//                 isDeleted;
+
+//               message.deletedAt =
+//                 deletedAt ??
+//                 null;
+
+//               message.text =
+//                 "";
+
+//               message.attachments =
+//                 [];
+
+//               message.reactions =
+//                 [];
+
+//               console.log(
+//                 "DELETE UPDATE: Message marked as deleted",
+//                 messageId,
+//               );
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // MESSAGE REACTION UPDATE
+//     // ==================================================
+
+//     socket.on(
+//       "message:reaction:update",
+//       (
+//         reactionUpdate: MessageReactionUpdate,
+//       ) => {
+//         console.log(
+//           "MESSAGE REACTION UPDATE:",
+//           reactionUpdate,
+//         );
+
+//         const {
+//           messageId,
+
+//           conversationId:
+//             reactionConversationId,
+
+//           action,
+
+//           reactionSummary,
+//         } =
+//           reactionUpdate;
+
+//         if (
+//           !messageId ||
+//           !reactionConversationId
+//         ) {
+//           console.error(
+//             "REACTION UPDATE: Invalid reaction payload",
+//             reactionUpdate,
+//           );
+
+//           return;
+//         }
+
+//         dispatch(
+//           messageApi.util.updateQueryData(
+//             "getMessages",
+//             {
+//               conversationId:
+//                 String(
+//                   reactionConversationId,
+//                 ),
+
+//               page: 1,
+
+//               limit: 30,
+//             },
+//             (draft) => {
+//               const message =
+//                 draft.messages.find(
+//                   (item) =>
+//                     String(
+//                       item._id,
+//                     ) ===
+//                     String(
+//                       messageId,
+//                     ),
+//                 );
+
+//               if (!message) {
+//                 console.log(
+//                   "REACTION UPDATE: Message not found in cache",
+//                   messageId,
+//                 );
+
+//                 return;
+//               }
+
+//               message.reactions =
+//                 reactionSummary;
+
+//               console.log(
+//                 "REACTION UPDATE: Reactions updated",
+//                 {
+//                   messageId,
+
+//                   action,
+
+//                   reactionSummary,
+//                 },
+//               );
+//             },
+//           ),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // TYPING START
+//     // ==================================================
+//     //
+//     // Typing feature remains active.
+//     // NO SOUND HERE.
+//     //
+
+//     socket.on(
+//       "typing:start",
+//       ({
+//         conversationId:
+//           typingConversationId,
+
+//         userId,
+//       }: {
+//         conversationId: string;
+
+//         userId: string;
+//       }) => {
+//         // ----------------------------------------------
+//         // CHECK CURRENT CONVERSATION
+//         // ----------------------------------------------
+
+//         if (
+//           String(
+//             typingConversationId,
+//           ) !==
+//           String(
+//             conversationIdRef.current,
+//           )
+//         ) {
+//           return;
+//         }
+
+//         // ----------------------------------------------
+//         // IGNORE OWN TYPING
+//         // ----------------------------------------------
+
+//         if (
+//           String(userId) ===
+//           String(
+//             currentUserIdRef.current,
+//           )
+//         ) {
+//           return;
+//         }
+
+//         console.log(
+//           "USER STARTED TYPING:",
+//           userId,
+//         );
+
+//         onTypingStartRef.current?.(
+//           String(userId),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // TYPING STOP
+//     // ==================================================
+//     //
+//     // NO SOUND HERE.
+//     //
+
+//     socket.on(
+//       "typing:stop",
+//       ({
+//         conversationId:
+//           typingConversationId,
+
+//         userId,
+//       }: {
+//         conversationId: string;
+
+//         userId: string;
+//       }) => {
+//         // ----------------------------------------------
+//         // CHECK CURRENT CONVERSATION
+//         // ----------------------------------------------
+
+//         if (
+//           String(
+//             typingConversationId,
+//           ) !==
+//           String(
+//             conversationIdRef.current,
+//           )
+//         ) {
+//           return;
+//         }
+
+//         // ----------------------------------------------
+//         // IGNORE OWN TYPING
+//         // ----------------------------------------------
+
+//         if (
+//           String(userId) ===
+//           String(
+//             currentUserIdRef.current,
+//           )
+//         ) {
+//           return;
+//         }
+
+//         console.log(
+//           "USER STOPPED TYPING:",
+//           userId,
+//         );
+
+//         onTypingStopRef.current?.(
+//           String(userId),
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // CONNECT ERROR
+//     // ==================================================
+
+//     socket.on(
+//       "connect_error",
+//       (error) => {
+//         console.error(
+//           "Socket connection error:",
+//           error.message,
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // DISCONNECT
+//     // ==================================================
+
+//     socket.on(
+//       "disconnect",
+//       (reason) => {
+//         console.log(
+//           "Socket disconnected:",
+//           reason,
+//         );
+
+//         joinedConversationRef.current =
+//           null;
+
+//         console.log(
+//           "Current conversation preserved for reconnect:",
+//           conversationIdRef.current,
+//         );
+
+//         console.log(
+//           "Will reconnect:",
+//           reason !==
+//             "io client disconnect",
+//         );
+//       },
+//     );
+
+//     // ==================================================
+//     // CLEANUP
+//     // ==================================================
+
+//     return () => {
+//       console.log(
+//         "Cleaning up socket:",
+//         socket.id,
+//       );
+
+//       // ----------------------------------------------
+//       // LEAVE CURRENT CONVERSATION
+//       // ----------------------------------------------
+
+//       if (
+//         joinedConversationRef.current &&
+//         socket.connected
+//       ) {
+//         socket.emit(
+//           "conversation:leave",
+//           {
+//             conversationId:
+//               joinedConversationRef.current,
+//           },
+//         );
+
+//         console.log(
+//           "Leaving conversation:",
+//           joinedConversationRef.current,
+//         );
+//       }
+
+//       // ----------------------------------------------
+//       // REMOVE LISTENERS
+//       // ----------------------------------------------
+
+//       socket.removeAllListeners();
+
+//       socket.io.removeAllListeners();
+
+//       // ----------------------------------------------
+//       // DISCONNECT
+//       // ----------------------------------------------
+
+//       socket.disconnect();
+
+//       // ----------------------------------------------
+//       // RESET SOCKET REF
+//       // ----------------------------------------------
+
+//       if (
+//         socketRef.current ===
+//         socket
+//       ) {
+//         socketRef.current =
+//           null;
+//       }
+
+//       joinedConversationRef.current =
+//         null;
+//     };
+//   }, [
+//     token,
+
+//     currentUserId,
+
+//     dispatch,
+
+//     markMessageAsRead,
+
+//     playIncomingMessageSound,
+//   ]);
+
+//   // ====================================================
+//   // CHANGE CONVERSATION
+//   // ====================================================
+
+//   useEffect(() => {
+//     const socket =
+//       socketRef.current;
+
+//     if (!socket) {
+//       return;
+//     }
+
+//     if (!socket.connected) {
+//       return;
+//     }
+
+//     const nextConversationId =
+//       conversationId;
+
+//     const previousConversationId =
+//       joinedConversationRef.current;
+
+//     // ==================================================
+//     // NOTHING CHANGED
+//     // ==================================================
+
+//     if (
+//       previousConversationId ===
+//       nextConversationId
+//     ) {
+//       return;
+//     }
+
+//     // ==================================================
+//     // LEAVE OLD CONVERSATION
+//     // ==================================================
+
+//     if (
+//       previousConversationId
+//     ) {
+//       socket.emit(
+//         "conversation:leave",
+//         {
+//           conversationId:
+//             previousConversationId,
+//         },
+//       );
+
+//       console.log(
+//         "Leaving conversation:",
+//         previousConversationId,
+//       );
+//     }
+
+//     joinedConversationRef.current =
+//       null;
+
+//     // ==================================================
+//     // JOIN NEW CONVERSATION
+//     // ==================================================
+
+//     if (
+//       nextConversationId
+//     ) {
+//       socket.emit(
+//         "conversation:join",
+//         {
+//           conversationId:
+//             nextConversationId,
+//         },
+//       );
+
+//       joinedConversationRef.current =
+//         nextConversationId;
+
+//       console.log(
+//         "Joining conversation:",
+//         nextConversationId,
+//       );
+//     }
+//   }, [
+//     conversationId,
+//   ]);
+
+//   // ====================================================
+//   // SEND TYPING START
+//   // ====================================================
+
+//   const sendTypingStart =
+//     useCallback(() => {
+//       const socket =
+//         socketRef.current;
+
+//       const selectedConversationId =
+//         conversationIdRef.current;
+
+//       if (
+//         !socket ||
+//         !selectedConversationId
+//       ) {
+//         return;
+//       }
+
+//       if (!socket.connected) {
+//         return;
+//       }
+
+//       socket.emit(
+//         "typing:start",
+//         {
+//           conversationId:
+//             selectedConversationId,
+//         },
+//       );
+
+//       console.log(
+//         "TYPING START EMITTED:",
+//         selectedConversationId,
+//       );
+//     }, []);
+
+//   // ====================================================
+//   // SEND TYPING STOP
+//   // ====================================================
+
+//   const sendTypingStop =
+//     useCallback(() => {
+//       const socket =
+//         socketRef.current;
+
+//       const selectedConversationId =
+//         conversationIdRef.current;
+
+//       if (
+//         !socket ||
+//         !selectedConversationId
+//       ) {
+//         return;
+//       }
+
+//       if (!socket.connected) {
+//         return;
+//       }
+
+//       socket.emit(
+//         "typing:stop",
+//         {
+//           conversationId:
+//             selectedConversationId,
+//         },
+//       );
+
+//       console.log(
+//         "TYPING STOP EMITTED:",
+//         selectedConversationId,
+//       );
+//     }, []);
+
+//   // ====================================================
+//   // DELETE MESSAGE REALTIME
+//   // ====================================================
+
+//   const deleteMessageRealtime =
+//     useCallback(
+//       (
+//         messageId: string,
+//       ) => {
+//         const socket =
+//           socketRef.current;
+
+//         if (
+//           !socket ||
+//           !socket.connected
+//         ) {
+//           console.error(
+//             "Socket is not connected. Cannot delete message.",
+//           );
+
+//           return false;
+//         }
+
+//         if (!messageId) {
+//           console.error(
+//             "Message ID is required for delete.",
+//           );
+
+//           return false;
+//         }
+
+//         socket.emit(
+//           "message:delete",
+//           {
+//             messageId:
+//               String(messageId),
+//           },
+//         );
+
+//         console.log(
+//           "MESSAGE DELETE EMITTED:",
+//           messageId,
+//         );
+
+//         return true;
+//       },
+//       [],
+//     );
+
+//   // ====================================================
+//   // EDIT MESSAGE REALTIME
+//   // ====================================================
+
+//   const editMessageRealtime =
+//     useCallback(
+//       (
+//         messageId: string,
+
+//         text: string,
+//       ) => {
+//         const socket =
+//           socketRef.current;
+
+//         if (
+//           !socket ||
+//           !socket.connected
+//         ) {
+//           console.error(
+//             "Socket is not connected. Cannot edit message.",
+//           );
+
+//           return false;
+//         }
+
+//         if (!messageId) {
+//           console.error(
+//             "Message ID is required for edit.",
+//           );
+
+//           return false;
+//         }
+
+//         const trimmedText =
+//           text.trim();
+
+//         if (!trimmedText) {
+//           console.error(
+//             "Cannot edit message with empty text.",
+//           );
+
+//           return false;
+//         }
+
+//         socket.emit(
+//           "message:edit",
+//           {
+//             messageId:
+//               String(messageId),
+
+//             text: trimmedText,
+//           },
+//         );
+
+//         console.log(
+//           "MESSAGE EDIT EMITTED:",
+//           {
+//             messageId,
+
+//             text: trimmedText,
+//           },
+//         );
+
+//         return true;
+//       },
+//       [],
+//     );
+
+//   // ====================================================
+//   // TOGGLE MESSAGE REACTION
+//   // ====================================================
+
+//   const toggleMessageReactionRealtime =
+//     useCallback(
+//       (
+//         messageId: string,
+
+//         emoji: string,
+//       ) => {
+//         const socket =
+//           socketRef.current;
+
+//         if (
+//           !socket ||
+//           !socket.connected
+//         ) {
+//           console.error(
+//             "Socket is not connected. Cannot react to message.",
+//           );
+
+//           return false;
+//         }
+
+//         if (!messageId) {
+//           console.error(
+//             "Message ID is required for reaction.",
+//           );
+
+//           return false;
+//         }
+
+//         if (!emoji) {
+//           console.error(
+//             "Emoji is required for reaction.",
+//           );
+
+//           return false;
+//         }
+
+//         socket.emit(
+//           "message:reaction",
+//           {
+//             messageId:
+//               String(messageId),
+
+//             emoji,
+//           },
+//         );
+
+//         console.log(
+//           "MESSAGE REACTION EMITTED:",
+//           {
+//             messageId,
+
+//             emoji,
+//           },
+//         );
+
+//         return true;
+//       },
+//       [],
+//     );
+
+//   // ====================================================
+//   // RETURN
+//   // ====================================================
+
+//   return {
+//     socket:
+//       socketRef.current,
+
+//     sendTypingStart,
+
+//     sendTypingStop,
+
+//     markMessageAsRead,
+
+//     deleteMessageRealtime,
+
+//     editMessageRealtime,
+
+//     toggleMessageReactionRealtime,
+
+//     disconnectSocket,
+
+//     playIncomingMessageSound,
+//   };
+// }
+ 
 "use client";
 
 import {
@@ -88,15 +2552,12 @@ interface PopulatedSender {
 
 interface ReactionUser {
   userId: string;
-
   name: string;
 }
 
 interface ReactionSummary {
   emoji: string;
-
   count: number;
-
   users: ReactionUser[];
 }
 
@@ -118,14 +2579,24 @@ interface MessageReactionUpdate {
 
 interface UserBlockedEvent {
   blockerId: string;
-
   blockedId: string;
 }
 
 interface UserUnblockedEvent {
   blockerId: string;
-
   blockedId: string;
+}
+
+// ======================================================
+// JOIN ERROR
+// ======================================================
+
+interface ConversationError {
+  message?: string;
+
+  conversationId?: string;
+
+  [key: string]: unknown;
 }
 
 // ======================================================
@@ -173,7 +2644,7 @@ const normalizeId = (
 };
 
 // ======================================================
-// GET POPULATED SENDER
+// POPULATED SENDER
 // ======================================================
 
 const getPopulatedSender = (
@@ -206,8 +2677,7 @@ const getNotificationBody = (
 
   if (
     message.attachments &&
-    message.attachments.length >
-      0
+    message.attachments.length > 0
   ) {
     const attachment =
       message.attachments[0];
@@ -241,13 +2711,9 @@ const getNotificationBody = (
 
 export default function useChatSocket({
   conversationId,
-
   onTypingStart,
-
   onTypingStop,
-
   onUserBlocked,
-
   onUserUnblocked,
 }: ChatSocketProps) {
   const dispatch =
@@ -270,7 +2736,7 @@ export default function useChatSocket({
     );
 
   // ====================================================
-  // SOCKET REF
+  // SOCKET
   // ====================================================
 
   const socketRef =
@@ -288,17 +2754,25 @@ export default function useChatSocket({
     );
 
   // ====================================================
-  // CURRENT VALUE REFS
+  // CURRENT CONVERSATION
   // ====================================================
 
   const conversationIdRef =
     useRef<string | null>(
-      conversationId,
+      conversationId
+        ? String(conversationId)
+        : null,
     );
+
+  // ====================================================
+  // CURRENT USER
+  // ====================================================
 
   const currentUserIdRef =
     useRef<string | undefined>(
-      currentUserId,
+      currentUserId
+        ? String(currentUserId)
+        : undefined,
     );
 
   // ====================================================
@@ -307,56 +2781,52 @@ export default function useChatSocket({
 
   const onTypingStartRef =
     useRef<
-      | ((
-          userId: string,
-        ) => void)
+      | ((userId: string) => void)
       | undefined
     >(onTypingStart);
 
   const onTypingStopRef =
     useRef<
-      | ((
-          userId: string,
-        ) => void)
+      | ((userId: string) => void)
       | undefined
     >(onTypingStop);
 
   const onUserBlockedRef =
     useRef<
-      | ((
-          data: UserBlockedEvent,
-        ) => void)
+      | ((data: UserBlockedEvent) => void)
       | undefined
     >(onUserBlocked);
 
   const onUserUnblockedRef =
     useRef<
-      | ((
-          data: UserUnblockedEvent,
-        ) => void)
+      | ((data: UserUnblockedEvent) => void)
       | undefined
     >(onUserUnblocked);
 
   // ====================================================
-  // CURRENT CONVERSATION REF
+  // UPDATE CONVERSATION REF
   // ====================================================
 
   useEffect(() => {
     conversationIdRef.current =
-      conversationId;
+      conversationId
+        ? String(conversationId)
+        : null;
   }, [conversationId]);
 
   // ====================================================
-  // CURRENT USER REF
+  // UPDATE USER REF
   // ====================================================
 
   useEffect(() => {
     currentUserIdRef.current =
-      currentUserId;
+      currentUserId
+        ? String(currentUserId)
+        : undefined;
   }, [currentUserId]);
 
   // ====================================================
-  // TYPING START CALLBACK REF
+  // UPDATE CALLBACK REFS
   // ====================================================
 
   useEffect(() => {
@@ -364,27 +2834,15 @@ export default function useChatSocket({
       onTypingStart;
   }, [onTypingStart]);
 
-  // ====================================================
-  // TYPING STOP CALLBACK REF
-  // ====================================================
-
   useEffect(() => {
     onTypingStopRef.current =
       onTypingStop;
   }, [onTypingStop]);
 
-  // ====================================================
-  // USER BLOCKED CALLBACK REF
-  // ====================================================
-
   useEffect(() => {
     onUserBlockedRef.current =
       onUserBlocked;
   }, [onUserBlocked]);
-
-  // ====================================================
-  // USER UNBLOCKED CALLBACK REF
-  // ====================================================
 
   useEffect(() => {
     onUserUnblockedRef.current =
@@ -401,7 +2859,7 @@ export default function useChatSocket({
     );
 
   // ====================================================
-  // INITIALIZE INCOMING AUDIO
+  // INITIALIZE AUDIO
   // ====================================================
 
   useEffect(() => {
@@ -425,10 +2883,6 @@ export default function useChatSocket({
     incomingAudioRef.current =
       audio;
 
-    console.log(
-      "🔊 Incoming audio initialized.",
-    );
-
     return () => {
       audio.pause();
 
@@ -440,7 +2894,7 @@ export default function useChatSocket({
   }, []);
 
   // ====================================================
-  // PLAY INCOMING MESSAGE SOUND
+  // PLAY AUDIO
   // ====================================================
 
   const playIncomingMessageSound =
@@ -456,10 +2910,6 @@ export default function useChatSocket({
         incomingAudioRef.current;
 
       if (!audio) {
-        console.warn(
-          "Incoming audio is not initialized.",
-        );
-
         return;
       }
 
@@ -468,14 +2918,11 @@ export default function useChatSocket({
 
         audio.currentTime = 0;
 
-        const playPromise =
+        const promise =
           audio.play();
 
-        if (
-          playPromise !==
-          undefined
-        ) {
-          playPromise.catch(
+        if (promise) {
+          promise.catch(
             (error) => {
               console.warn(
                 "Unable to play incoming message sound:",
@@ -493,7 +2940,7 @@ export default function useChatSocket({
     }, []);
 
   // ====================================================
-  // PENDING READ MESSAGE IDS
+  // PENDING READ IDS
   // ====================================================
 
   const pendingReadMessageIds =
@@ -507,75 +2954,128 @@ export default function useChatSocket({
 
   const markMessageAsRead =
     useCallback(
-      (
-        messageId: string,
-      ) => {
+      (messageId: string) => {
         if (!messageId) {
           return;
         }
 
-        const normalizedMessageId =
+        const normalizedId =
           String(messageId);
 
         const socket =
           socketRef.current;
 
-        // ----------------------------------------------
-        // SOCKET UNAVAILABLE
-        // ----------------------------------------------
-
-        if (!socket) {
+        if (
+          !socket ||
+          !socket.connected
+        ) {
           pendingReadMessageIds.current.add(
-            normalizedMessageId,
-          );
-
-          console.log(
-            "READ QUEUED - socket unavailable:",
-            normalizedMessageId,
+            normalizedId,
           );
 
           return;
         }
-
-        // ----------------------------------------------
-        // SOCKET NOT CONNECTED
-        // ----------------------------------------------
-
-        if (!socket.connected) {
-          pendingReadMessageIds.current.add(
-            normalizedMessageId,
-          );
-
-          console.log(
-            "READ QUEUED - socket not connected:",
-            normalizedMessageId,
-          );
-
-          return;
-        }
-
-        // ----------------------------------------------
-        // EMIT READ
-        // ----------------------------------------------
 
         socket.emit(
           "message:read",
           {
             messageId:
-              normalizedMessageId,
+              normalizedId,
           },
-        );
-
-        console.log(
-          "MESSAGE READ EMITTED:",
-          normalizedMessageId,
         );
       },
       [],
     );
 
   // ====================================================
-  // MANUAL DISCONNECT
+  // JOIN CONVERSATION
+  // ====================================================
+
+  const joinConversation =
+    useCallback(
+      (
+        id: string | null,
+      ) => {
+        const socket =
+          socketRef.current;
+
+        if (
+          !socket ||
+          !socket.connected
+        ) {
+          return false;
+        }
+
+        const normalizedId =
+          normalizeId(id);
+
+        if (!normalizedId) {
+          return false;
+        }
+
+        const alreadyJoined =
+          joinedConversationRef.current;
+
+        if (
+          alreadyJoined ===
+          normalizedId
+        ) {
+          return true;
+        }
+
+        // ----------------------------------------------
+        // LEAVE OLD
+        // ----------------------------------------------
+
+        if (
+          alreadyJoined &&
+          alreadyJoined !==
+            normalizedId
+        ) {
+          socket.emit(
+            "conversation:leave",
+            {
+              conversationId:
+                alreadyJoined,
+            },
+          );
+
+          console.log(
+            "Leaving conversation:",
+            alreadyJoined,
+          );
+        }
+
+        joinedConversationRef.current =
+          null;
+
+        // ----------------------------------------------
+        // JOIN NEW
+        // ----------------------------------------------
+
+        socket.emit(
+          "conversation:join",
+          {
+            conversationId:
+              normalizedId,
+          },
+        );
+
+        joinedConversationRef.current =
+          normalizedId;
+
+        console.log(
+          "Joining conversation:",
+          normalizedId,
+        );
+
+        return true;
+      },
+      [],
+    );
+
+  // ====================================================
+  // DISCONNECT SOCKET
   // ====================================================
 
   const disconnectSocket =
@@ -584,57 +3084,30 @@ export default function useChatSocket({
         socketRef.current;
 
       if (!socket) {
-        console.log(
-          "Socket already disconnected.",
-        );
-
         return;
       }
 
-      console.log(
-        "Manually disconnecting socket:",
-        socket.id,
-      );
-
-      // ----------------------------------------------
-      // LEAVE CURRENT CONVERSATION
-      // ----------------------------------------------
+      const joinedConversation =
+        joinedConversationRef.current;
 
       if (
-        joinedConversationRef.current &&
+        joinedConversation &&
         socket.connected
       ) {
         socket.emit(
           "conversation:leave",
           {
             conversationId:
-              joinedConversationRef.current,
+              joinedConversation,
           },
         );
-
-        console.log(
-          "Leaving conversation before logout:",
-          joinedConversationRef.current,
-        );
       }
-
-      // ----------------------------------------------
-      // REMOVE LISTENERS
-      // ----------------------------------------------
 
       socket.removeAllListeners();
 
       socket.io.removeAllListeners();
 
-      // ----------------------------------------------
-      // DISCONNECT
-      // ----------------------------------------------
-
       socket.disconnect();
-
-      // ----------------------------------------------
-      // RESET REFS
-      // ----------------------------------------------
 
       socketRef.current =
         null;
@@ -642,14 +3115,7 @@ export default function useChatSocket({
       joinedConversationRef.current =
         null;
 
-      conversationIdRef.current =
-        null;
-
       pendingReadMessageIds.current.clear();
-
-      console.log(
-        "Socket manually disconnected successfully.",
-      );
     }, []);
 
   // ====================================================
@@ -669,9 +3135,9 @@ export default function useChatSocket({
         .NEXT_PUBLIC_SOCKET_URL ||
       "http://localhost:5000";
 
-    // ==================================================
+    // --------------------------------------------------
     // CREATE SOCKET
-    // ==================================================
+    // --------------------------------------------------
 
     const socket =
       io(
@@ -716,42 +3182,24 @@ export default function useChatSocket({
           socket.id,
         );
 
-        console.log(
-          "Socket transport:",
-          socket.io.engine
-            .transport.name,
-        );
+        // ----------------------------------------------
+        // JOIN CURRENT CONVERSATION
+        // ----------------------------------------------
 
-        // ==============================================
-        // REJOIN CURRENT CONVERSATION
-        // ==============================================
-
-        const selectedConversationId =
+        const currentConversation =
           conversationIdRef.current;
 
         if (
-          selectedConversationId
+          currentConversation
         ) {
-          socket.emit(
-            "conversation:join",
-            {
-              conversationId:
-                selectedConversationId,
-            },
-          );
-
-          joinedConversationRef.current =
-            selectedConversationId;
-
-          console.log(
-            "Joining conversation:",
-            selectedConversationId,
+          joinConversation(
+            currentConversation,
           );
         }
 
-        // ==============================================
+        // ----------------------------------------------
         // FLUSH PENDING READS
-        // ==============================================
+        // ----------------------------------------------
 
         if (
           pendingReadMessageIds
@@ -762,25 +3210,13 @@ export default function useChatSocket({
               pendingReadMessageIds.current,
             );
 
-          console.log(
-            "Flushing pending read messages:",
-            pendingIds,
-          );
-
           pendingIds.forEach(
-            (
-              messageId,
-            ) => {
+            (messageId) => {
               socket.emit(
                 "message:read",
                 {
                   messageId,
                 },
-              );
-
-              console.log(
-                "Pending message marked as read:",
-                messageId,
               );
             },
           );
@@ -791,7 +3227,7 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // RECONNECT ATTEMPT
+    // RECONNECT
     // ==================================================
 
     socket.io.on(
@@ -804,9 +3240,31 @@ export default function useChatSocket({
       },
     );
 
-    // ==================================================
-    // RECONNECT ERROR
-    // ==================================================
+    socket.io.on(
+      "reconnect",
+      (attempt) => {
+        console.log(
+          "Socket reconnected:",
+          {
+            socketId:
+              socket.id,
+
+            attempt,
+          },
+        );
+
+        const currentConversation =
+          conversationIdRef.current;
+
+        if (
+          currentConversation
+        ) {
+          joinConversation(
+            currentConversation,
+          );
+        }
+      },
+    );
 
     socket.io.on(
       "reconnect_error",
@@ -814,25 +3272,6 @@ export default function useChatSocket({
         console.error(
           "Socket reconnect error:",
           error.message,
-        );
-      },
-    );
-
-    // ==================================================
-    // RECONNECT SUCCESS
-    // ==================================================
-
-    socket.io.on(
-      "reconnect",
-      (attempt) => {
-        console.log(
-          "Socket reconnected successfully:",
-          {
-            socketId:
-              socket.id,
-
-            attempt,
-          },
         );
       },
     );
@@ -850,9 +3289,14 @@ export default function useChatSocket({
         conversationId: string;
       }) => {
         console.log(
-          "Conversation joined:",
+          "Conversation joined successfully:",
           joinedConversationId,
         );
+
+        joinedConversationRef.current =
+          String(
+            joinedConversationId,
+          );
       },
     );
 
@@ -862,11 +3306,29 @@ export default function useChatSocket({
 
     socket.on(
       "conversation:error",
-      (error) => {
+      (
+        error: ConversationError,
+      ) => {
         console.error(
-          "Conversation error:",
+          "❌ Conversation error:",
           error,
         );
+
+        console.error(
+          "Conversation ID:",
+          conversationIdRef.current,
+        );
+
+        console.error(
+          "Current user:",
+          currentUserIdRef.current,
+        );
+
+        // Important:
+        // Do not pretend that the conversation
+        // was successfully joined.
+        joinedConversationRef.current =
+          null;
       },
     );
 
@@ -880,38 +3342,19 @@ export default function useChatSocket({
         blockerId,
         blockedId,
       }: UserBlockedEvent) => {
-        console.log(
-          "USER BLOCKED EVENT RECEIVED:",
-          {
-            blockerId,
-            blockedId,
-          },
-        );
+        const currentId =
+          currentUserIdRef.current;
 
-        const normalizedCurrentUserId =
-          currentUserIdRef.current
-            ? String(
-                currentUserIdRef.current,
-              )
-            : null;
-
-        if (
-          !normalizedCurrentUserId
-        ) {
+        if (!currentId) {
           return;
         }
 
         if (
           String(blockedId) !==
-          normalizedCurrentUserId
+          String(currentId)
         ) {
           return;
         }
-
-        console.log(
-          "CURRENT USER WAS BLOCKED BY:",
-          blockerId,
-        );
 
         onUserBlockedRef.current?.({
           blockerId:
@@ -933,38 +3376,19 @@ export default function useChatSocket({
         blockerId,
         blockedId,
       }: UserUnblockedEvent) => {
-        console.log(
-          "USER UNBLOCKED EVENT RECEIVED:",
-          {
-            blockerId,
-            blockedId,
-          },
-        );
+        const currentId =
+          currentUserIdRef.current;
 
-        const normalizedCurrentUserId =
-          currentUserIdRef.current
-            ? String(
-                currentUserIdRef.current,
-              )
-            : null;
-
-        if (
-          !normalizedCurrentUserId
-        ) {
+        if (!currentId) {
           return;
         }
 
         if (
           String(blockedId) !==
-          normalizedCurrentUserId
+          String(currentId)
         ) {
           return;
         }
-
-        console.log(
-          "CURRENT USER WAS UNBLOCKED BY:",
-          blockerId,
-        );
 
         onUserUnblockedRef.current?.({
           blockerId:
@@ -983,32 +3407,14 @@ export default function useChatSocket({
     socket.on(
       "message:new",
       (message: Message) => {
-        console.log(
-          "REALTIME MESSAGE RECEIVED:",
-          message,
-        );
-
-        // ==============================================
-        // MESSAGE ID
-        // ==============================================
-
         const messageId =
           normalizeId(
             message._id,
           );
 
         if (!messageId) {
-          console.error(
-            "MESSAGE:new - messageId missing:",
-            message,
-          );
-
           return;
         }
-
-        // ==============================================
-        // CONVERSATION ID
-        // ==============================================
 
         const messageConversationId =
           normalizeId(
@@ -1018,17 +3424,8 @@ export default function useChatSocket({
         if (
           !messageConversationId
         ) {
-          console.error(
-            "MESSAGE:new - conversationId missing:",
-            message,
-          );
-
           return;
         }
-
-        // ==============================================
-        // CURRENTLY SELECTED CONVERSATION
-        // ==============================================
 
         const selectedConversationId =
           conversationIdRef.current
@@ -1037,18 +3434,10 @@ export default function useChatSocket({
               )
             : null;
 
-        // ==============================================
-        // SENDER ID
-        // ==============================================
-
         const normalizedSenderId =
           normalizeId(
             message.senderId,
           );
-
-        // ==============================================
-        // CURRENT USER ID
-        // ==============================================
 
         const normalizedCurrentUserId =
           currentUserIdRef.current
@@ -1056,10 +3445,6 @@ export default function useChatSocket({
                 currentUserIdRef.current,
               )
             : null;
-
-        // ==============================================
-        // OWN MESSAGE
-        // ==============================================
 
         const isOwnMessage =
           normalizedSenderId !==
@@ -1069,38 +3454,24 @@ export default function useChatSocket({
           normalizedSenderId ===
             normalizedCurrentUserId;
 
-        // ==============================================
-        // CURRENT CONVERSATION
-        // ==============================================
-
         const isCurrentConversation =
           messageConversationId ===
           selectedConversationId;
 
-        // ==============================================
-        // INCOMING SOUND
-        // ==============================================
+        // ----------------------------------------------
+        // SOUND
+        // ----------------------------------------------
 
         if (
           !isOwnMessage &&
           isCurrentConversation
         ) {
           playIncomingMessageSound();
-
-          console.log(
-            "🔊 INCOMING MESSAGE SOUND PLAYED:",
-            {
-              messageId,
-
-              conversationId:
-                messageConversationId,
-            },
-          );
         }
 
-        // ==============================================
+        // ----------------------------------------------
         // SENDER
-        // ==============================================
+        // ----------------------------------------------
 
         const sender =
           getPopulatedSender(
@@ -1116,39 +3487,9 @@ export default function useChatSocket({
           sender?.avatarUrl ||
           null;
 
-        // ==============================================
-        // DEBUG
-        // ==============================================
-
-        console.log(
-          "🔔 MESSAGE CHECK:",
-          {
-            messageConversationId,
-
-            selectedConversationId,
-
-            messageSenderId:
-              normalizedSenderId,
-
-            normalizedCurrentUserId,
-
-            senderName,
-
-            senderAvatar,
-
-            isOwnMessage,
-
-            isCurrentConversation,
-          },
-        );
-
-        // ==============================================
-        // IN-SITE NOTIFICATION
-        // ==============================================
-        //
-        // Notification ONLY when current user is
-        // NOT inside this conversation.
-        //
+        // ----------------------------------------------
+        // NOTIFICATION
+        // ----------------------------------------------
 
         if (
           !isOwnMessage &&
@@ -1156,17 +3497,14 @@ export default function useChatSocket({
           typeof window !==
             "undefined"
         ) {
-          const notificationBody =
-            getNotificationBody(
-              message,
-            );
-
           emitChatNotification({
             title:
               senderName,
 
             body:
-              notificationBody,
+              getNotificationBody(
+                message,
+              ),
 
             conversationId:
               messageConversationId,
@@ -1178,32 +3516,11 @@ export default function useChatSocket({
 
             senderAvatar,
           });
-
-          console.log(
-            "🔔 IN-SITE NOTIFICATION SENT:",
-            {
-              title:
-                senderName,
-
-              body:
-                notificationBody,
-
-              conversationId:
-                messageConversationId,
-
-              messageId,
-
-              senderId:
-                normalizedSenderId,
-
-              senderAvatar,
-            },
-          );
         }
 
-        // ==============================================
-        // MESSAGE DELIVERY
-        // ==============================================
+        // ----------------------------------------------
+        // DELIVERY
+        // ----------------------------------------------
 
         if (
           normalizedSenderId &&
@@ -1215,16 +3532,11 @@ export default function useChatSocket({
               messageId,
             },
           );
-
-          console.log(
-            "Message delivered:",
-            messageId,
-          );
         }
 
-        // ==============================================
-        // MESSAGE READ
-        // ==============================================
+        // ----------------------------------------------
+        // READ
+        // ----------------------------------------------
 
         if (
           normalizedSenderId &&
@@ -1234,16 +3546,11 @@ export default function useChatSocket({
           markMessageAsRead(
             messageId,
           );
-
-          console.log(
-            "Message read:",
-            messageId,
-          );
         }
 
-        // ==============================================
+        // ----------------------------------------------
         // MESSAGE CACHE
-        // ==============================================
+        // ----------------------------------------------
 
         dispatch(
           messageApi.util.updateQueryData(
@@ -1259,20 +3566,13 @@ export default function useChatSocket({
             (draft) => {
               const exists =
                 draft.messages.some(
-                  (
-                    existingMessage,
-                  ) =>
+                  (existingMessage) =>
                     String(
                       existingMessage._id,
                     ) === messageId,
                 );
 
               if (exists) {
-                console.log(
-                  "MESSAGE CACHE: Duplicate message ignored:",
-                  messageId,
-                );
-
                 return;
               }
 
@@ -1293,9 +3593,9 @@ export default function useChatSocket({
           ),
         );
 
-        // ==============================================
+        // ----------------------------------------------
         // SIDEBAR CACHE
-        // ==============================================
+        // ----------------------------------------------
 
         dispatch(
           conversationApi.util.updateQueryData(
@@ -1315,24 +3615,12 @@ export default function useChatSocket({
                 return;
               }
 
-              // ========================================
-              // LAST MESSAGE
-              // ========================================
-
               conversation.lastMessage =
                 message as typeof conversation.lastMessage;
-
-              // ========================================
-              // UPDATED TIME
-              // ========================================
 
               conversation.updatedAt =
                 message.updatedAt ||
                 message.createdAt;
-
-              // ========================================
-              // UNREAD COUNT
-              // ========================================
 
               if (
                 !isOwnMessage &&
@@ -1345,11 +3633,7 @@ export default function useChatSocket({
                   ) + 1;
               }
 
-              // ========================================
-              // MOVE TO TOP
-              // ========================================
-
-              const currentIndex =
+              const index =
                 draft.findIndex(
                   (item) =>
                     String(
@@ -1359,14 +3643,13 @@ export default function useChatSocket({
                 );
 
               if (
-                currentIndex >
-                0
+                index > 0
               ) {
                 const [
                   updatedConversation,
                 ] =
                   draft.splice(
-                    currentIndex,
+                    index,
                     1,
                   );
 
@@ -1385,37 +3668,21 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // MESSAGE DELIVERY UPDATE
+    // DELIVERY UPDATE
     // ==================================================
 
     socket.on(
       "message:delivery:update",
       ({
         messageId,
-
         conversationId:
           deliveryConversationId,
-
         userId,
       }: {
         messageId: string;
-
         conversationId: string;
-
         userId: string;
       }) => {
-        console.log(
-          "MESSAGE DELIVERY UPDATE:",
-          {
-            messageId,
-
-            conversationId:
-              deliveryConversationId,
-
-            userId,
-          },
-        );
-
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
@@ -1442,11 +3709,6 @@ export default function useChatSocket({
                 );
 
               if (!message) {
-                console.log(
-                  "DELIVERY UPDATE: Message not found in cache",
-                  messageId,
-                );
-
                 return;
               }
 
@@ -1457,34 +3719,18 @@ export default function useChatSocket({
                   [];
               }
 
-              const alreadyDelivered =
+              const exists =
                 message.deliveredTo.some(
                   (id) =>
                     String(id) ===
                     String(userId),
                 );
 
-              if (
-                alreadyDelivered
-              ) {
-                return;
-              }
-
-              message.deliveredTo.push(
-                userId,
-              );
-
-              console.log(
-                "DELIVERY UPDATE: deliveredTo updated",
-                {
-                  messageId,
-
+              if (!exists) {
+                message.deliveredTo.push(
                   userId,
-
-                  deliveredTo:
-                    message.deliveredTo,
-                },
-              );
+                );
+              }
             },
           ),
         );
@@ -1492,37 +3738,21 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // MESSAGE READ UPDATE
+    // READ UPDATE
     // ==================================================
 
     socket.on(
       "message:read:update",
       ({
         messageId,
-
         conversationId:
           readConversationId,
-
         userId,
       }: {
         messageId: string;
-
         conversationId: string;
-
         userId: string;
       }) => {
-        console.log(
-          "MESSAGE READ UPDATE:",
-          {
-            messageId,
-
-            conversationId:
-              readConversationId,
-
-            userId,
-          },
-        );
-
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
@@ -1549,11 +3779,6 @@ export default function useChatSocket({
                 );
 
               if (!message) {
-                console.log(
-                  "READ UPDATE: Message not found in cache",
-                  messageId,
-                );
-
                 return;
               }
 
@@ -1564,34 +3789,18 @@ export default function useChatSocket({
                   [];
               }
 
-              const alreadyRead =
+              const exists =
                 message.readBy.some(
                   (id) =>
                     String(id) ===
                     String(userId),
                 );
 
-              if (
-                alreadyRead
-              ) {
-                return;
-              }
-
-              message.readBy.push(
-                userId,
-              );
-
-              console.log(
-                "READ UPDATE: readBy updated",
-                {
-                  messageId,
-
+              if (!exists) {
+                message.readBy.push(
                   userId,
-
-                  readBy:
-                    message.readBy,
-                },
-              );
+                );
+              }
             },
           ),
         );
@@ -1605,11 +3814,6 @@ export default function useChatSocket({
     socket.on(
       "message:edited",
       (message: Message) => {
-        console.log(
-          "MESSAGE EDITED UPDATE:",
-          message,
-        );
-
         const messageConversationId =
           normalizeId(
             message.conversationId,
@@ -1633,7 +3837,7 @@ export default function useChatSocket({
               limit: 30,
             },
             (draft) => {
-              const existingMessage =
+              const existing =
                 draft.messages.find(
                   (item) =>
                     String(
@@ -1644,30 +3848,18 @@ export default function useChatSocket({
                     ),
                 );
 
-              if (
-                !existingMessage
-              ) {
-                console.log(
-                  "EDIT UPDATE: Message not found in cache",
-                  message._id,
-                );
-
+              if (!existing) {
                 return;
               }
 
-              existingMessage.text =
+              existing.text =
                 message.text;
 
-              existingMessage.isEdited =
+              existing.isEdited =
                 message.isEdited;
 
-              existingMessage.updatedAt =
+              existing.updatedAt =
                 message.updatedAt;
-
-              console.log(
-                "EDIT UPDATE: Message updated",
-                message._id,
-              );
             },
           ),
         );
@@ -1682,12 +3874,9 @@ export default function useChatSocket({
       "message:deleted",
       ({
         messageId,
-
         conversationId:
           deletedConversationId,
-
         isDeleted,
-
         deletedAt,
       }: {
         messageId: string;
@@ -1700,20 +3889,6 @@ export default function useChatSocket({
           | string
           | null;
       }) => {
-        console.log(
-          "MESSAGE DELETED UPDATE:",
-          {
-            messageId,
-
-            conversationId:
-              deletedConversationId,
-
-            isDeleted,
-
-            deletedAt,
-          },
-        );
-
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
@@ -1740,11 +3915,6 @@ export default function useChatSocket({
                 );
 
               if (!message) {
-                console.log(
-                  "DELETE UPDATE: Message not found in cache",
-                  messageId,
-                );
-
                 return;
               }
 
@@ -1752,8 +3922,7 @@ export default function useChatSocket({
                 isDeleted;
 
               message.deletedAt =
-                deletedAt ??
-                null;
+                deletedAt ?? null;
 
               message.text =
                 "";
@@ -1763,11 +3932,6 @@ export default function useChatSocket({
 
               message.reactions =
                 [];
-
-              console.log(
-                "DELETE UPDATE: Message marked as deleted",
-                messageId,
-              );
             },
           ),
         );
@@ -1775,7 +3939,7 @@ export default function useChatSocket({
     );
 
     // ==================================================
-    // MESSAGE REACTION UPDATE
+    // REACTION UPDATE
     // ==================================================
 
     socket.on(
@@ -1783,19 +3947,10 @@ export default function useChatSocket({
       (
         reactionUpdate: MessageReactionUpdate,
       ) => {
-        console.log(
-          "MESSAGE REACTION UPDATE:",
-          reactionUpdate,
-        );
-
         const {
           messageId,
-
           conversationId:
             reactionConversationId,
-
-          action,
-
           reactionSummary,
         } =
           reactionUpdate;
@@ -1804,11 +3959,6 @@ export default function useChatSocket({
           !messageId ||
           !reactionConversationId
         ) {
-          console.error(
-            "REACTION UPDATE: Invalid reaction payload",
-            reactionUpdate,
-          );
-
           return;
         }
 
@@ -1838,27 +3988,11 @@ export default function useChatSocket({
                 );
 
               if (!message) {
-                console.log(
-                  "REACTION UPDATE: Message not found in cache",
-                  messageId,
-                );
-
                 return;
               }
 
               message.reactions =
                 reactionSummary;
-
-              console.log(
-                "REACTION UPDATE: Reactions updated",
-                {
-                  messageId,
-
-                  action,
-
-                  reactionSummary,
-                },
-              );
             },
           ),
         );
@@ -1868,27 +4002,17 @@ export default function useChatSocket({
     // ==================================================
     // TYPING START
     // ==================================================
-    //
-    // Typing feature remains active.
-    // NO SOUND HERE.
-    //
 
     socket.on(
       "typing:start",
       ({
         conversationId:
           typingConversationId,
-
         userId,
       }: {
         conversationId: string;
-
         userId: string;
       }) => {
-        // ----------------------------------------------
-        // CHECK CURRENT CONVERSATION
-        // ----------------------------------------------
-
         if (
           String(
             typingConversationId,
@@ -1900,10 +4024,6 @@ export default function useChatSocket({
           return;
         }
 
-        // ----------------------------------------------
-        // IGNORE OWN TYPING
-        // ----------------------------------------------
-
         if (
           String(userId) ===
           String(
@@ -1912,11 +4032,6 @@ export default function useChatSocket({
         ) {
           return;
         }
-
-        console.log(
-          "USER STARTED TYPING:",
-          userId,
-        );
 
         onTypingStartRef.current?.(
           String(userId),
@@ -1927,26 +4042,17 @@ export default function useChatSocket({
     // ==================================================
     // TYPING STOP
     // ==================================================
-    //
-    // NO SOUND HERE.
-    //
 
     socket.on(
       "typing:stop",
       ({
         conversationId:
           typingConversationId,
-
         userId,
       }: {
         conversationId: string;
-
         userId: string;
       }) => {
-        // ----------------------------------------------
-        // CHECK CURRENT CONVERSATION
-        // ----------------------------------------------
-
         if (
           String(
             typingConversationId,
@@ -1958,10 +4064,6 @@ export default function useChatSocket({
           return;
         }
 
-        // ----------------------------------------------
-        // IGNORE OWN TYPING
-        // ----------------------------------------------
-
         if (
           String(userId) ===
           String(
@@ -1970,11 +4072,6 @@ export default function useChatSocket({
         ) {
           return;
         }
-
-        console.log(
-          "USER STOPPED TYPING:",
-          userId,
-        );
 
         onTypingStopRef.current?.(
           String(userId),
@@ -1990,7 +4087,7 @@ export default function useChatSocket({
       "connect_error",
       (error) => {
         console.error(
-          "Socket connection error:",
+          "❌ Socket connection error:",
           error.message,
         );
       },
@@ -2008,19 +4105,14 @@ export default function useChatSocket({
           reason,
         );
 
+        /*
+         * Don't clear conversationIdRef.
+         *
+         * We need it for automatic reconnect.
+         */
+
         joinedConversationRef.current =
           null;
-
-        console.log(
-          "Current conversation preserved for reconnect:",
-          conversationIdRef.current,
-        );
-
-        console.log(
-          "Will reconnect:",
-          reason !==
-            "io client disconnect",
-        );
       },
     );
 
@@ -2029,50 +4121,27 @@ export default function useChatSocket({
     // ==================================================
 
     return () => {
-      console.log(
-        "Cleaning up socket:",
-        socket.id,
-      );
-
-      // ----------------------------------------------
-      // LEAVE CURRENT CONVERSATION
-      // ----------------------------------------------
+      const joinedConversation =
+        joinedConversationRef.current;
 
       if (
-        joinedConversationRef.current &&
+        joinedConversation &&
         socket.connected
       ) {
         socket.emit(
           "conversation:leave",
           {
             conversationId:
-              joinedConversationRef.current,
+              joinedConversation,
           },
         );
-
-        console.log(
-          "Leaving conversation:",
-          joinedConversationRef.current,
-        );
       }
-
-      // ----------------------------------------------
-      // REMOVE LISTENERS
-      // ----------------------------------------------
 
       socket.removeAllListeners();
 
       socket.io.removeAllListeners();
 
-      // ----------------------------------------------
-      // DISCONNECT
-      // ----------------------------------------------
-
       socket.disconnect();
-
-      // ----------------------------------------------
-      // RESET SOCKET REF
-      // ----------------------------------------------
 
       if (
         socketRef.current ===
@@ -2087,13 +4156,10 @@ export default function useChatSocket({
     };
   }, [
     token,
-
     currentUserId,
-
     dispatch,
-
+    joinConversation,
     markMessageAsRead,
-
     playIncomingMessageSound,
   ]);
 
@@ -2110,75 +4176,19 @@ export default function useChatSocket({
     }
 
     if (!socket.connected) {
+      /*
+       * connect event will automatically
+       * join the latest conversation.
+       */
       return;
     }
 
-    const nextConversationId =
-      conversationId;
-
-    const previousConversationId =
-      joinedConversationRef.current;
-
-    // ==================================================
-    // NOTHING CHANGED
-    // ==================================================
-
-    if (
-      previousConversationId ===
-      nextConversationId
-    ) {
-      return;
-    }
-
-    // ==================================================
-    // LEAVE OLD CONVERSATION
-    // ==================================================
-
-    if (
-      previousConversationId
-    ) {
-      socket.emit(
-        "conversation:leave",
-        {
-          conversationId:
-            previousConversationId,
-        },
-      );
-
-      console.log(
-        "Leaving conversation:",
-        previousConversationId,
-      );
-    }
-
-    joinedConversationRef.current =
-      null;
-
-    // ==================================================
-    // JOIN NEW CONVERSATION
-    // ==================================================
-
-    if (
-      nextConversationId
-    ) {
-      socket.emit(
-        "conversation:join",
-        {
-          conversationId:
-            nextConversationId,
-        },
-      );
-
-      joinedConversationRef.current =
-        nextConversationId;
-
-      console.log(
-        "Joining conversation:",
-        nextConversationId,
-      );
-    }
+    joinConversation(
+      conversationId,
+    );
   }, [
     conversationId,
+    joinConversation,
   ]);
 
   // ====================================================
@@ -2195,12 +4205,9 @@ export default function useChatSocket({
 
       if (
         !socket ||
+        !socket.connected ||
         !selectedConversationId
       ) {
-        return;
-      }
-
-      if (!socket.connected) {
         return;
       }
 
@@ -2210,11 +4217,6 @@ export default function useChatSocket({
           conversationId:
             selectedConversationId,
         },
-      );
-
-      console.log(
-        "TYPING START EMITTED:",
-        selectedConversationId,
       );
     }, []);
 
@@ -2232,12 +4234,9 @@ export default function useChatSocket({
 
       if (
         !socket ||
+        !socket.connected ||
         !selectedConversationId
       ) {
-        return;
-      }
-
-      if (!socket.connected) {
         return;
       }
 
@@ -2248,15 +4247,10 @@ export default function useChatSocket({
             selectedConversationId,
         },
       );
-
-      console.log(
-        "TYPING STOP EMITTED:",
-        selectedConversationId,
-      );
     }, []);
 
   // ====================================================
-  // DELETE MESSAGE REALTIME
+  // DELETE MESSAGE
   // ====================================================
 
   const deleteMessageRealtime =
@@ -2279,10 +4273,6 @@ export default function useChatSocket({
         }
 
         if (!messageId) {
-          console.error(
-            "Message ID is required for delete.",
-          );
-
           return false;
         }
 
@@ -2294,25 +4284,19 @@ export default function useChatSocket({
           },
         );
 
-        console.log(
-          "MESSAGE DELETE EMITTED:",
-          messageId,
-        );
-
         return true;
       },
       [],
     );
 
   // ====================================================
-  // EDIT MESSAGE REALTIME
+  // EDIT MESSAGE
   // ====================================================
 
   const editMessageRealtime =
     useCallback(
       (
         messageId: string,
-
         text: string,
       ) => {
         const socket =
@@ -2329,22 +4313,13 @@ export default function useChatSocket({
           return false;
         }
 
-        if (!messageId) {
-          console.error(
-            "Message ID is required for edit.",
-          );
-
-          return false;
-        }
-
         const trimmedText =
           text.trim();
 
-        if (!trimmedText) {
-          console.error(
-            "Cannot edit message with empty text.",
-          );
-
+        if (
+          !messageId ||
+          !trimmedText
+        ) {
           return false;
         }
 
@@ -2358,29 +4333,19 @@ export default function useChatSocket({
           },
         );
 
-        console.log(
-          "MESSAGE EDIT EMITTED:",
-          {
-            messageId,
-
-            text: trimmedText,
-          },
-        );
-
         return true;
       },
       [],
     );
 
   // ====================================================
-  // TOGGLE MESSAGE REACTION
+  // REACTION
   // ====================================================
 
   const toggleMessageReactionRealtime =
     useCallback(
       (
         messageId: string,
-
         emoji: string,
       ) => {
         const socket =
@@ -2397,19 +4362,10 @@ export default function useChatSocket({
           return false;
         }
 
-        if (!messageId) {
-          console.error(
-            "Message ID is required for reaction.",
-          );
-
-          return false;
-        }
-
-        if (!emoji) {
-          console.error(
-            "Emoji is required for reaction.",
-          );
-
+        if (
+          !messageId ||
+          !emoji
+        ) {
           return false;
         }
 
@@ -2418,15 +4374,6 @@ export default function useChatSocket({
           {
             messageId:
               String(messageId),
-
-            emoji,
-          },
-        );
-
-        console.log(
-          "MESSAGE REACTION EMITTED:",
-          {
-            messageId,
 
             emoji,
           },
@@ -2462,4 +4409,3 @@ export default function useChatSocket({
     playIncomingMessageSound,
   };
 }
- 

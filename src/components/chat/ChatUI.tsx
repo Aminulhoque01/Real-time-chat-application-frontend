@@ -1,120 +1,136 @@
-
-
 "use client";
+
+import { useState } from "react";
 
 import ChatHeader from "./ChatHeader";
 import MessageComposer, {
-type MessageSendPayload,
+  type MessageSendPayload,
 } from "./MessageComposer";
 import MessageList from "./MessageList";
 import TypingIndicator from "./TypingIndicator";
 import EmptyChat from "./EmptyChat";
+ 
 
 import type {
-Conversation,
-ConversationUser,
+  Conversation,
+  ConversationUser,
 } from "@/src/redux/features/conversation/conversation.types";
 
 import type { Message } from "@/src/redux/features/message/message.types";
+import GroupModal from "./GroupModal";
 
 // ==================================================
 // PROPS
 // ==================================================
 
 interface ChatUIProps {
-conversation: Conversation | null;
+  conversation: Conversation | null;
 
-currentUserId?: string;
+  currentUserId?: string;
 
-onOpenSidebar: () => void;
+  onOpenSidebar: () => void;
 
-// ==================================================
-// PROFILE
-// ==================================================
+  // ==================================================
+  // PROFILE
+  // ==================================================
 
-onOpenProfile: () => void;
+  onOpenProfile: () => void;
 
-// ==================================================
-// BLOCK
-// ==================================================
+  // ==================================================
+  // BLOCK
+  // ==================================================
 
-isBlocked?: boolean;
+  isBlocked?: boolean;
 
-// ==================================================
-// SEND MESSAGE
-// ==================================================
+  // ==================================================
+  // SEND MESSAGE
+  // ==================================================
 
-onSendMessage?: (
-payload: MessageSendPayload,
-) => void;
+  onSendMessage?: (
+    payload: MessageSendPayload,
+  ) => void;
 
-// ==================================================
-// REPLY
-// ==================================================
+  // ==================================================
+  // REPLY
+  // ==================================================
 
-replyingTo?: Message | null;
+  replyingTo?: Message | null;
 
-onReplyMessage?: (
-message: Message,
-) => void;
+  onReplyMessage?: (
+    message: Message,
+  ) => void;
 
-onCancelReply?: () => void;
+  onCancelReply?: () => void;
 
-// ==================================================
-// TYPING
-// ==================================================
+  // ==================================================
+  // TYPING
+  // ==================================================
 
-onTypingStart?: () => void;
+  onTypingStart?: () => void;
 
-onTypingStop?: () => void;
+  onTypingStop?: () => void;
 
-// ==================================================
-// READ
-// ==================================================
+  // ==================================================
+  // READ
+  // ==================================================
 
-markMessageAsRead?: (
-messageId: string,
-) => void;
+  markMessageAsRead?: (
+    messageId: string,
+  ) => void;
 
-// ==================================================
-// DELETE
-// ==================================================
+  // ==================================================
+  // DELETE MESSAGE
+  // ==================================================
 
-onDeleteMessage?: (
-messageId: string,
-) => boolean;
+  onDeleteMessage?: (
+    messageId: string,
+  ) => boolean;
 
-// ==================================================
-// EDIT
-// ==================================================
+  // ==================================================
+  // EDIT MESSAGE
+  // ==================================================
 
-onEditMessage?: (
-messageId: string,
-text: string,
-) => boolean;
+  onEditMessage?: (
+    messageId: string,
+    text: string,
+  ) => boolean;
 
-// ==================================================
-// REACTION
-// ==================================================
+  // ==================================================
+  // REACTION
+  // ==================================================
 
-onReactionMessage?: (
-messageId: string,
-emoji: string,
-) => boolean;
+  onReactionMessage?: (
+    messageId: string,
+    emoji: string,
+  ) => boolean;
 
-// ==================================================
-// TYPING INDICATOR
-// ==================================================
+  // ==================================================
+  // TYPING INDICATOR
+  // ==================================================
 
-isTyping?: boolean;
+  isTyping?: boolean;
 
-typingUserName?: string;
+  typingUserName?: string;
 
-// ==================================================
-// SEND LOADING
-// ==================================================
+  // ==================================================
+  // SEND LOADING
+  // ==================================================
 
-isSending?: boolean;
+  isSending?: boolean;
+
+  // ==================================================
+  // OPTIONAL GROUP CALLBACK
+  // ==================================================
+
+  onGroupUpdated?: (
+    conversation: Conversation,
+  ) => void;
+
+  onGroupDeleted?: (
+    conversationId: string,
+  ) => void;
+
+  onGroupLeft?: () => void;
 }
 
 // ==================================================
@@ -122,26 +138,21 @@ isSending?: boolean;
 // ==================================================
 
 const getOtherParticipant = (
-conversation: Conversation,
-currentUserId?: string,
+  conversation: Conversation,
+  currentUserId?: string,
 ): ConversationUser | null => {
-if (
-conversation.type ===
-"group"
-) {
-return null;
-}
+  if (conversation.type === "group") {
+    return null;
+  }
 
-const otherParticipant =
-conversation.participants.find(
-(participant) =>
-String(participant._id) !==
-String(currentUserId),
-);
+  const otherParticipant =
+    conversation.participants.find(
+      (participant) =>
+        String(participant._id) !==
+        String(currentUserId),
+    );
 
-return (
-otherParticipant ?? null
-);
+  return otherParticipant ?? null;
 };
 
 // ==================================================
@@ -149,30 +160,27 @@ otherParticipant ?? null
 // ==================================================
 
 const getConversationName = (
-conversation: Conversation,
-currentUserId?: string,
+  conversation: Conversation,
+  currentUserId?: string,
 ): string => {
-if (
-conversation.type ===
-"group"
-) {
-return (
-conversation.name?.trim() ||
-"Group"
-);
-}
+  if (conversation.type === "group") {
+    return (
+      conversation.name?.trim() ||
+      "Group"
+    );
+  }
 
-const otherUser =
-getOtherParticipant(
-conversation,
-currentUserId,
-);
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-return (
-otherUser?.name?.trim() ||
-otherUser?.phone ||
-"Unknown"
-);
+  return (
+    otherUser?.name?.trim() ||
+    otherUser?.phone ||
+    "Unknown"
+  );
 };
 
 // ==================================================
@@ -180,26 +188,20 @@ otherUser?.phone ||
 // ==================================================
 
 const getConversationAvatar = (
-conversation: Conversation,
-currentUserId?: string,
+  conversation: Conversation,
+  currentUserId?: string,
 ): string | null => {
-if (
-conversation.type ===
-"group"
-) {
-return null;
-}
+  if (conversation.type === "group") {
+    return null;
+  }
 
-const otherUser =
-getOtherParticipant(
-conversation,
-currentUserId,
-);
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-return (
-otherUser?.avatar ||
-null
-);
+  return otherUser?.avatar || null;
 };
 
 // ==================================================
@@ -207,229 +209,303 @@ null
 // ==================================================
 
 export default function ChatUI({
-conversation,
-currentUserId,
-onOpenSidebar,
-onOpenProfile,
+  conversation,
+  currentUserId,
+  onOpenSidebar,
+  onOpenProfile,
 
-// BLOCK
-isBlocked = false,
+  // BLOCK
+  isBlocked = false,
 
-// SEND
-onSendMessage,
+  // SEND
+  onSendMessage,
 
-// REPLY
-replyingTo,
-onReplyMessage,
-onCancelReply,
+  // REPLY
+  replyingTo,
+  onReplyMessage,
+  onCancelReply,
 
-// TYPING
-onTypingStart,
-onTypingStop,
+  // TYPING
+  onTypingStart,
+  onTypingStop,
 
-// READ
-markMessageAsRead,
+  // READ
+  markMessageAsRead,
 
-// DELETE
-onDeleteMessage,
+  // DELETE
+  onDeleteMessage,
 
-// EDIT
-onEditMessage,
+  // EDIT
+  onEditMessage,
 
-// REACTION
-onReactionMessage,
+  // REACTION
+  onReactionMessage,
 
-// TYPING
-isTyping = false,
-typingUserName,
+  // TYPING INDICATOR
+  isTyping = false,
+  typingUserName,
 
-// SEND
-isSending = false,
+  // SEND
+  isSending = false,
+
+  // GROUP
+  onGroupUpdated,
+  onGroupDeleted,
+  onGroupLeft,
 }: ChatUIProps) {
-// ==================================================
-// NO CONVERSATION
-// ==================================================
+  // ==================================================
+  // GROUP MODAL STATE
+  // ==================================================
 
-if (!conversation) {
-return ( <main className="flex min-h-0 flex-1 flex-col bg-white"> <EmptyChat /> </main>
-);
-}
+  const [
+    isGroupModalOpen,
+    setIsGroupModalOpen,
+  ] = useState(false);
 
-// ==================================================
-// OTHER USER
-// ==================================================
+  // ==================================================
+  // NO CONVERSATION
+  // ==================================================
 
-const otherUser =
-getOtherParticipant(
-conversation,
-currentUserId,
-);
+  if (!conversation) {
+    return (
+      <main className="flex min-h-0 flex-1 flex-col bg-white">
+        <EmptyChat />
+      </main>
+    );
+  }
 
-// ==================================================
-// NAME
-// ==================================================
+  // ==================================================
+  // OTHER USER
+  // ==================================================
 
-const conversationName =
-getConversationName(
-conversation,
-currentUserId,
-);
+  const otherUser =
+    getOtherParticipant(
+      conversation,
+      currentUserId,
+    );
 
-// ==================================================
-// AVATAR
-// ==================================================
+  // ==================================================
+  // NAME
+  // ==================================================
 
-const conversationAvatar =
-getConversationAvatar(
-conversation,
-currentUserId,
-);
+  const conversationName =
+    getConversationName(
+      conversation,
+      currentUserId,
+    );
 
-// ==================================================
-// TYPING NAME
-// ==================================================
+  // ==================================================
+  // AVATAR
+  // ==================================================
 
-const displayTypingName =
-typingUserName?.trim() ||
-"Someone";
+  const conversationAvatar =
+    getConversationAvatar(
+      conversation,
+      currentUserId,
+    );
 
-// ==================================================
-// UI
-// ==================================================
+  // ==================================================
+  // TYPING NAME
+  // ==================================================
 
-return ( <main className="flex min-h-0 flex-1 flex-col bg-white">
+  const displayTypingName =
+    typingUserName?.trim() ||
+    "Someone";
 
- 
-  {/* ==================================================
-      CHAT HEADER
-  ================================================== */}
+  // ==================================================
+  // OPEN GROUP DETAILS
+  // ==================================================
 
-  <ChatHeader
-    conversation={
-      conversation
-    }
-    name={
-      conversationName
-    }
-    avatar={
-      conversationAvatar
-    }
-    otherUser={
-      otherUser
-    }
-    onOpenSidebar={
-      onOpenSidebar
-    }
-    onOpenProfile={
-      onOpenProfile
-    }
-  />
-
-  {/* ==================================================
-      MESSAGE LIST
-  ================================================== */}
-
-  <div className="min-h-0 flex-1 overflow-hidden">
-    <MessageList
-      conversationId={
-        conversation._id
+  const handleOpenGroupDetails =
+    () => {
+      if (
+        conversation.type !==
+        "group"
+      ) {
+        return;
       }
 
-      currentUserId={
-        currentUserId
-      }
+      setIsGroupModalOpen(true);
+    };
 
-      // READ
-      markMessageAsRead={
-        markMessageAsRead
-      }
+  // ==================================================
+  // GROUP UPDATED
+  // ==================================================
 
-      // REPLY
-      onReply={
-        onReplyMessage
-      }
+  const handleGroupUpdated = (
+    updatedConversation: Conversation,
+  ) => {
+    onGroupUpdated?.(
+      updatedConversation,
+    );
+  };
 
-      // DELETE
-      onDelete={
-        onDeleteMessage
-      }
+  // ==================================================
+  // GROUP DELETED
+  // ==================================================
 
-      // EDIT
-      onEdit={
-        onEditMessage
-      }
+  const handleGroupDeleted = (
+    conversationId: string,
+  ) => {
+    setIsGroupModalOpen(false);
 
-      // REACTION
-      onReaction={
-        onReactionMessage
-      }
-    />
-  </div>
+    onGroupDeleted?.(
+      conversationId,
+    );
+  };
 
-  {/* ==================================================
-      TYPING INDICATOR
-  ================================================== */}
+  // ==================================================
+  // GROUP LEFT
+  // ==================================================
 
-  <div
-    className={`
-      min-h-[32px]
-      shrink-0
-      transition-all
-      duration-200
-      ${
-        isTyping
-          ? "opacity-100"
-          : "opacity-0"
-      }
-    `}
-  >
-    {isTyping && (
-      <TypingIndicator
-        name={
-          displayTypingName
+  const handleGroupLeft = () => {
+    setIsGroupModalOpen(false);
+
+    onGroupLeft?.();
+  };
+
+  // ==================================================
+  // UI
+  // ==================================================
+
+  return (
+    <main className="flex min-h-0 flex-1 flex-col bg-white">
+      {/* ==================================================
+          CHAT HEADER
+      ================================================== */}
+
+      <ChatHeader
+        conversation={conversation}
+        name={conversationName}
+        avatar={conversationAvatar}
+        otherUser={otherUser}
+        onOpenSidebar={
+          onOpenSidebar
+        }
+        onOpenProfile={
+          onOpenProfile
+        }
+        onOpenGroupDetails={
+          handleOpenGroupDetails
         }
       />
-    )}
-  </div>
 
-  {/* ==================================================
-      MESSAGE COMPOSER
-  ================================================== */}
+      {/* ==================================================
+          MESSAGE LIST
+      ================================================== */}
 
-  <MessageComposer
-    onSend={
-      onSendMessage
-    }
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <MessageList
+          conversationId={
+            conversation._id
+          }
+          currentUserId={
+            currentUserId
+          }
+          markMessageAsRead={
+            markMessageAsRead
+          }
+          onReply={
+            onReplyMessage
+          }
+          onDelete={
+            onDeleteMessage
+          }
+          onEdit={
+            onEditMessage
+          }
+          onReaction={
+            onReactionMessage
+          }
+        />
+      </div>
 
-    onTypingStart={
-      onTypingStart
-    }
+      {/* ==================================================
+          TYPING INDICATOR
+      ================================================== */}
 
-    onTypingStop={
-      onTypingStop
-    }
+      <div
+        className={`
+          min-h-[32px]
+          shrink-0
+          transition-all
+          duration-200
+          ${
+            isTyping
+              ? "opacity-100"
+              : "opacity-0"
+          }
+        `}
+      >
+        {isTyping && (
+          <TypingIndicator
+            name={
+              displayTypingName
+            }
+          />
+        )}
+      </div>
 
-    // BLOCK
-    isBlocked={
-      isBlocked
-    }
+      {/* ==================================================
+          MESSAGE COMPOSER
+      ================================================== */}
 
-    // REPLY
-    replyingTo={
-      replyingTo
-    }
+      <MessageComposer
+        onSend={
+          onSendMessage
+        }
+        onTypingStart={
+          onTypingStart
+        }
+        onTypingStop={
+          onTypingStop
+        }
+        isBlocked={
+          isBlocked
+        }
+        replyingTo={
+          replyingTo
+        }
+        onCancelReply={
+          onCancelReply
+        }
+        disabled={
+          isSending
+        }
+      />
 
-    onCancelReply={
-      onCancelReply
-    }
+      {/* ==================================================
+          GROUP MANAGEMENT MODAL
+      ================================================== */}
 
-    // SEND LOADING
-    disabled={
-      isSending
-    }
-  />
-</main>
- 
-
-);
+      {conversation.type ===
+        "group" && (
+        <GroupModal
+          isOpen={
+            isGroupModalOpen
+          }
+          onClose={() =>
+            setIsGroupModalOpen(
+              false,
+            )
+          }
+          currentUserId={
+            currentUserId
+          }
+          existingConversation={
+            conversation
+          }
+          onUpdated={
+            handleGroupUpdated
+          }
+          onLeft={
+            handleGroupLeft
+          }
+          onDeleted={
+            handleGroupDeleted
+          }
+        />
+      )}
+    </main>
+  );
 }
