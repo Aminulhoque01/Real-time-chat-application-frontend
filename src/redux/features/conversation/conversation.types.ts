@@ -42,6 +42,7 @@ export interface Conversation {
     | string
     | ConversationUser;
 
+    groupPhoto?: string | null;
   lastMessage:
     | LastMessage
     | null;

@@ -1,227 +1,10 @@
-// "use client";
-
-// import {
-//   Menu,
-//   MoreVertical,
-//   Phone,
-//   Video,
-// } from "lucide-react";
-
-// import type {
-//   Conversation,
-//   ConversationUser,
-// } from "@/src/redux/features/conversation/conversation.types";
-
-// interface ChatHeaderProps {
-//   conversation: Conversation;
-//   name: string;
-//   avatar: string | null;
-//   otherUser: ConversationUser | null;
-//   onOpenSidebar: () => void;
-//   onOpenProfile: () => void;
-// }
-
-// const formatLastSeen = (date?: string) => {
-//   if (!date) return "Offline";
-
-//   const lastSeen = new Date(date);
-
-//   if (Number.isNaN(lastSeen.getTime())) {
-//     return "Offline";
-//   }
-
-//   return `Last seen ${lastSeen.toLocaleTimeString([], {
-//     hour: "2-digit",
-//     minute: "2-digit",
-//   })}`;
-// };
-
-// export default function ChatHeader({
-//   conversation,
-//   name,
-//   avatar,
-//   otherUser,
-//   onOpenSidebar,
-//   onOpenProfile,
-// }: ChatHeaderProps) {
-//   return (
-//     <header
-//       className="
-//         flex h-[72px] shrink-0
-//         items-center justify-between
-//         border-b border-slate-100
-//         px-4 sm:px-6
-//       "
-//     >
-//       {/* LEFT */}
-//       <div className="flex min-w-0 items-center gap-3">
-//         {/* Mobile sidebar */}
-//         <button
-//           type="button"
-//           onClick={onOpenSidebar}
-//           className="
-//             flex h-10 w-10 shrink-0
-//             items-center justify-center
-//             rounded-xl bg-slate-100
-//             text-slate-600
-//             transition
-//             hover:bg-slate-200
-//             lg:hidden
-//           "
-//         >
-//           <Menu size={19} />
-//         </button>
-
-//         {/* PROFILE BUTTON */}
-//         <button
-//           type="button"
-//           onClick={onOpenProfile}
-//           className="
-//             flex min-w-0
-//             items-center gap-3
-//             rounded-xl
-//             text-left
-//             transition
-//             hover:bg-slate-50
-//           "
-//         >
-//           {/* AVATAR */}
-//           <div className="relative shrink-0">
-//             {avatar ? (
-//               <img
-//                 src={avatar}
-//                 alt={name}
-//                 className="
-//                   h-11 w-11
-//                   rounded-full
-//                   object-cover
-//                 "
-//               />
-//             ) : (
-//               <div
-//                 className="
-//                   flex h-11 w-11
-//                   items-center justify-center
-//                   rounded-full
-//                   bg-slate-900
-//                   text-sm font-bold
-//                   text-white
-//                 "
-//               >
-//                 {name.charAt(0).toUpperCase()}
-//               </div>
-//             )}
-
-//             {/* ONLINE */}
-//             {conversation.type === "direct" &&
-//               otherUser?.isOnline && (
-//                 <span
-//                   className="
-//                     absolute bottom-0 right-0
-//                     h-3 w-3
-//                     rounded-full
-//                     border-2 border-white
-//                     bg-emerald-500
-//                   "
-//                 />
-//               )}
-//           </div>
-
-//           {/* USER INFO */}
-//           <div className="min-w-0">
-//             <h2
-//               className="
-//                 truncate text-sm font-bold
-//                 text-slate-800
-//                 sm:text-base
-//               "
-//             >
-//               {name}
-//             </h2>
-
-//             <p
-//               className="
-//                 mt-0.5 truncate
-//                 text-[11px] text-slate-400
-//                 sm:text-xs
-//               "
-//             >
-//               {conversation.type === "group"
-//                 ? `${conversation.participants.length} members`
-//                 : otherUser?.isOnline
-//                   ? "Active now"
-//                   : formatLastSeen(
-//                       otherUser?.lastSeen,
-//                     )}
-//             </p>
-//           </div>
-//         </button>
-//       </div>
-
-//       {/* RIGHT ACTIONS */}
-//       <div className="flex items-center gap-1">
-//         {/* PHONE */}
-//         <button
-//           type="button"
-//           className="
-//             hidden h-9 w-9
-//             items-center justify-center
-//             rounded-xl
-//             text-slate-400
-//             transition
-//             hover:bg-slate-100
-//             hover:text-slate-700
-//             sm:flex
-//           "
-//         >
-//           <Phone size={18} />
-//         </button>
-
-//         {/* VIDEO */}
-//         <button
-//           type="button"
-//           className="
-//             hidden h-9 w-9
-//             items-center justify-center
-//             rounded-xl
-//             text-slate-400
-//             transition
-//             hover:bg-slate-100
-//             hover:text-slate-700
-//             sm:flex
-//           "
-//         >
-//           <Video size={19} />
-//         </button>
-
-//         {/* MORE */}
-//         <button
-//           type="button"
-//           className="
-//             flex h-9 w-9
-//             items-center justify-center
-//             rounded-xl
-//             text-slate-400
-//             transition
-//             hover:bg-slate-100
-//             hover:text-slate-700
-//           "
-//         >
-//           <MoreVertical size={19} />
-//         </button>
-//       </div>
-//     </header>
-//   );
-// }
-
-
-
 "use client";
 
 import {
   Menu,
   MoreVertical,
   Phone,
+  Users,
   Video,
 } from "lucide-react";
 
@@ -243,8 +26,10 @@ interface ChatHeaderProps {
   onOpenGroupDetails: () => void;
 }
 
-const formatLastSeen = (date?: string) => {
-  if (!date) return "Offline";
+const formatLastSeen = (date?: string | null) => {
+  if (!date) {
+    return "Offline";
+  }
 
   const lastSeen = new Date(date);
 
@@ -269,6 +54,17 @@ export default function ChatHeader({
 }: ChatHeaderProps) {
   const isGroup = conversation.type === "group";
 
+  /*
+   * Direct conversation:
+   *   avatar prop
+   *
+   * Group conversation:
+   *   conversation.groupPhoto
+   */
+  const displayAvatar = isGroup
+    ? conversation.groupPhoto || null
+    : avatar;
+
   const handleProfileClick = () => {
     if (isGroup) {
       onOpenGroupDetails();
@@ -287,16 +83,21 @@ export default function ChatHeader({
         px-4 sm:px-6
       "
     >
-      {/* LEFT */}
+      {/* ==================================================
+          LEFT
+      ================================================== */}
+
       <div className="flex min-w-0 items-center gap-3">
         {/* MOBILE SIDEBAR */}
+
         <button
           type="button"
           onClick={onOpenSidebar}
           className="
             flex h-10 w-10 shrink-0
             items-center justify-center
-            rounded-xl bg-slate-100
+            rounded-xl
+            bg-slate-100
             text-slate-600
             transition
             hover:bg-slate-200
@@ -307,7 +108,10 @@ export default function ChatHeader({
           <Menu size={19} />
         </button>
 
-        {/* PROFILE / GROUP BUTTON */}
+        {/* ==================================================
+            PROFILE / GROUP BUTTON
+        ================================================== */}
+
         <button
           type="button"
           onClick={handleProfileClick}
@@ -326,11 +130,14 @@ export default function ChatHeader({
               : "Open profile"
           }
         >
-          {/* AVATAR */}
+          {/* ==================================================
+              AVATAR
+          ================================================== */}
+
           <div className="relative shrink-0">
-            {avatar ? (
+            {displayAvatar ? (
               <img
-                src={avatar}
+                src={displayAvatar}
                 alt={name}
                 className="
                   h-11 w-11
@@ -338,7 +145,25 @@ export default function ChatHeader({
                   object-cover
                 "
               />
+            ) : isGroup ? (
+              /*
+               * GROUP FALLBACK
+               */
+              <div
+                className="
+                  flex h-11 w-11
+                  items-center justify-center
+                  rounded-full
+                  bg-slate-900
+                  text-white
+                "
+              >
+                <Users size={20} />
+              </div>
             ) : (
+              /*
+               * DIRECT CHAT FALLBACK
+               */
               <div
                 className="
                   flex h-11 w-11
@@ -353,8 +178,12 @@ export default function ChatHeader({
               </div>
             )}
 
-            {/* ONLINE */}
-            {conversation.type === "direct" &&
+            {/* ==================================================
+                ONLINE STATUS
+                Only direct conversations have online status
+            ================================================== */}
+
+            {!isGroup &&
               otherUser?.isOnline && (
                 <span
                   className="
@@ -368,11 +197,15 @@ export default function ChatHeader({
               )}
           </div>
 
-          {/* NAME + STATUS */}
+          {/* ==================================================
+              NAME + STATUS
+          ================================================== */}
+
           <div className="min-w-0">
             <h2
               className="
-                truncate text-sm font-bold
+                truncate
+                text-sm font-bold
                 text-slate-800
                 sm:text-base
               "
@@ -382,8 +215,10 @@ export default function ChatHeader({
 
             <p
               className="
-                mt-0.5 truncate
-                text-[11px] text-slate-400
+                mt-0.5
+                truncate
+                text-[11px]
+                text-slate-400
                 sm:text-xs
               "
             >
@@ -399,9 +234,13 @@ export default function ChatHeader({
         </button>
       </div>
 
-      {/* RIGHT ACTIONS */}
+      {/* ==================================================
+          RIGHT ACTIONS
+      ================================================== */}
+
       <div className="flex items-center gap-1">
         {/* PHONE */}
+
         <button
           type="button"
           className="
@@ -420,6 +259,7 @@ export default function ChatHeader({
         </button>
 
         {/* VIDEO */}
+
         <button
           type="button"
           className="
@@ -438,6 +278,7 @@ export default function ChatHeader({
         </button>
 
         {/* MORE */}
+
         <button
           type="button"
           className="

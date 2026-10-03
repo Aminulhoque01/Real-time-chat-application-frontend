@@ -1,7 +1,7 @@
- 
 "use client";
 
 import {
+  ChangeEvent,
   useEffect,
   useMemo,
   useState,
@@ -19,13 +19,16 @@ import {
   Loader2,
   Search,
   ShieldCheck,
+  Camera,
 } from "lucide-react";
 
 import {
   useAddParticipantsMutation,
+  useDeleteGroupMutation,
   useRemoveParticipantMutation,
   usePromoteAdminMutation,
   useRenameGroupMutation,
+  useUpdateGroupPhotoMutation,
 } from "@/src/redux/features/conversation/conversationApi";
 
 import type {
@@ -79,12 +82,6 @@ const getConversationUserName = (
     user.phone ||
     "Unknown User"
   );
-};
-
-const getAuthUserId = (
-  user: User,
-): string => {
-  return String(user._id);
 };
 
 const getAuthUserName = (
@@ -197,6 +194,24 @@ export default function GroupModal({
     },
   ] =
     useRenameGroupMutation();
+
+  const [
+    updateGroupPhoto,
+    {
+      isLoading:
+        isUploadingPhoto,
+    },
+  ] =
+    useUpdateGroupPhotoMutation();
+
+  const [
+    deleteGroup,
+    {
+      isLoading:
+        isDeletingGroup,
+    },
+  ] =
+    useDeleteGroupMutation();
 
   // ==================================================
   // USERS
@@ -340,7 +355,7 @@ export default function GroupModal({
     });
 
   // ==================================================
-  // SEARCH USERS
+  // FILTER USERS
   // ==================================================
 
   const filteredUsers =
@@ -574,6 +589,79 @@ export default function GroupModal({
     };
 
   // ==================================================
+  // GROUP PHOTO
+  // ==================================================
+
+  const handleGroupPhotoChange = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const file =
+      event.target.files?.[0];
+
+    // Reset input so same file can
+    // be selected again later.
+    event.target.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    // ==================================================
+    // VALIDATE TYPE
+    // ==================================================
+
+    if (
+      !file.type.startsWith(
+        "image/",
+      )
+    ) {
+      setActionError(
+        "Please select a valid image file.",
+      );
+
+      return;
+    }
+
+    // ==================================================
+    // VALIDATE SIZE
+    // ==================================================
+
+    const maxSize =
+      5 * 1024 * 1024;
+
+    if (file.size > maxSize) {
+      setActionError(
+        "Image size must be less than 5MB.",
+      );
+
+      return;
+    }
+
+    setActionError("");
+
+    try {
+      const updated =
+        await updateGroupPhoto({
+          conversationId:
+            existingConversation._id,
+
+          photo: file,
+        }).unwrap();
+
+      onUpdated?.(updated);
+    } catch (error: any) {
+      setActionError(
+        error?.data?.message ||
+          "Failed to upload group photo.",
+      );
+    }
+  };
+
+  // ==================================================
   // LEAVE GROUP
   // ==================================================
 
@@ -611,29 +699,50 @@ export default function GroupModal({
 
   const handleDeleteGroup =
     async () => {
-      /*
-       * Delete Group API is not connected yet.
-       *
-       * Add deleteGroup mutation to
-       * conversationApi first.
-       */
+      if (!isAdmin) {
+        return;
+      }
 
-      setActionError(
-        "Group delete API is not connected yet.",
-      );
+      setActionError("");
+
+      try {
+        await deleteGroup(
+          existingConversation._id,
+        ).unwrap();
+
+        setConfirmDelete(false);
+
+        onDeleted?.(
+          existingConversation._id,
+        );
+
+        onClose();
+      } catch (error: any) {
+        setActionError(
+          error?.data?.message ||
+            "Failed to delete group.",
+        );
+      }
     };
+
+  // ==================================================
+  // BUSY STATE
+  // ==================================================
+
+  const isBusy =
+    isAddingParticipants ||
+    isRemovingParticipant ||
+    isPromotingAdmin ||
+    isRenamingGroup ||
+    isUploadingPhoto ||
+    isDeletingGroup;
 
   // ==================================================
   // CLOSE
   // ==================================================
 
   const handleClose = () => {
-    if (
-      isAddingParticipants ||
-      isRemovingParticipant ||
-      isPromotingAdmin ||
-      isRenamingGroup
-    ) {
+    if (isBusy) {
       return;
     }
 
@@ -692,18 +801,44 @@ export default function GroupModal({
           "
         >
           <div className="flex min-w-0 items-center gap-3">
+
             {/* GROUP AVATAR */}
 
             <div
               className="
-                flex h-12 w-12 shrink-0
-                items-center justify-center
-                rounded-2xl
-                bg-slate-900
-                text-white
+                relative
+                h-12 w-12
+                shrink-0
               "
             >
-              <Users size={22} />
+              {existingConversation.groupPhoto ? (
+                <img
+                  src={
+                    existingConversation.groupPhoto
+                  }
+                  alt={
+                    existingConversation.name ||
+                    "Group"
+                  }
+                  className="
+                    h-12 w-12
+                    rounded-2xl
+                    object-cover
+                  "
+                />
+              ) : (
+                <div
+                  className="
+                    flex h-12 w-12
+                    items-center justify-center
+                    rounded-2xl
+                    bg-slate-900
+                    text-white
+                  "
+                >
+                  <Users size={22} />
+                </div>
+              )}
             </div>
 
             <div className="min-w-0">
@@ -736,6 +871,7 @@ export default function GroupModal({
           <button
             type="button"
             onClick={handleClose}
+            disabled={isBusy}
             className="
               flex h-9 w-9
               items-center justify-center
@@ -744,6 +880,8 @@ export default function GroupModal({
               transition
               hover:bg-slate-100
               hover:text-slate-700
+              disabled:cursor-not-allowed
+              disabled:opacity-50
             "
             aria-label="Close group modal"
           >
@@ -756,6 +894,7 @@ export default function GroupModal({
         ================================================== */}
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+
           {/* ==================================================
               GROUP INFO
           ================================================== */}
@@ -826,6 +965,7 @@ export default function GroupModal({
                           setIsRenameOpen(
                             false,
                           );
+
                           setGroupName(
                             existingConversation.name ||
                               "",
@@ -887,9 +1027,7 @@ export default function GroupModal({
                   <button
                     type="button"
                     onClick={() => {
-                      setActionError(
-                        "",
-                      );
+                      setActionError("");
 
                       setGroupName(
                         existingConversation.name ||
@@ -921,14 +1059,16 @@ export default function GroupModal({
                 )}
             </div>
 
-            {/* GROUP PHOTO */}
+            {/* ==================================================
+                GROUP PHOTO
+            ================================================== */}
 
             {isAdmin && (
-              <button
-                type="button"
-                disabled
+              <label
                 className="
+                  relative
                   mt-4 flex w-full
+                  cursor-pointer
                   items-center gap-3
                   rounded-2xl
                   border border-dashed
@@ -936,29 +1076,61 @@ export default function GroupModal({
                   bg-slate-50
                   px-4 py-3
                   text-left
-                  opacity-70
+                  transition
+                  hover:border-slate-300
+                  hover:bg-slate-100
                 "
               >
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={
+                    handleGroupPhotoChange
+                  }
+                  disabled={
+                    isUploadingPhoto ||
+                    isDeletingGroup
+                  }
+                />
+
                 <div
                   className="
-                    flex h-9 w-9
+                    flex h-10 w-10
+                    shrink-0
                     items-center justify-center
+                    overflow-hidden
                     rounded-xl
                     bg-white
                     text-slate-500
                   "
                 >
-                  <Users size={17} />
+                  {existingConversation.groupPhoto ? (
+                    <img
+                      src={
+                        existingConversation.groupPhoto
+                      }
+                      alt="Group photo"
+                      className="
+                        h-full w-full
+                        object-cover
+                      "
+                    />
+                  ) : (
+                    <Camera size={17} />
+                  )}
                 </div>
 
-                <div>
+                <div className="min-w-0 flex-1">
                   <p
                     className="
                       text-sm font-semibold
                       text-slate-700
                     "
                   >
-                    Group photo
+                    {isUploadingPhoto
+                      ? "Uploading photo..."
+                      : "Change group photo"}
                   </p>
 
                   <p
@@ -967,11 +1139,29 @@ export default function GroupModal({
                       text-slate-400
                     "
                   >
-                    Photo upload will be
-                    connected next
+                    JPG, PNG, WEBP · Max 5MB
                   </p>
                 </div>
-              </button>
+
+                {isUploadingPhoto ? (
+                  <Loader2
+                    size={18}
+                    className="
+                      shrink-0
+                      animate-spin
+                      text-slate-500
+                    "
+                  />
+                ) : (
+                  <Camera
+                    size={17}
+                    className="
+                      shrink-0
+                      text-slate-400
+                    "
+                  />
+                )}
+              </label>
             )}
           </div>
 
@@ -1159,7 +1349,9 @@ export default function GroupModal({
                             {getConversationUserName(
                               user,
                             )
-                              .charAt(0)
+                              .charAt(
+                                0,
+                              )
                               .toUpperCase()}
                           </div>
                         )}
@@ -1239,85 +1431,85 @@ export default function GroupModal({
                           !current && (
                             <div className="flex items-center gap-1">
                               {!admin && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handlePromoteAdmin(
-                                      user,
-                                    )
-                                  }
-                                  disabled={
-                                    isPromotingAdmin
-                                  }
-                                  className="
-                                    flex h-8 w-8
-                                    items-center
-                                    justify-center
-                                    rounded-lg
-                                    text-slate-400
-                                    transition
-                                    hover:bg-amber-50
-                                    hover:text-amber-600
-                                    disabled:opacity-50
-                                  "
-                                  title="Make admin"
-                                >
-                                  {isPromotingAdmin ? (
-                                    <Loader2
-                                      size={
-                                        14
-                                      }
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <ShieldCheck
-                                      size={
-                                        15
-                                      }
-                                    />
-                                  )}
-                                </button>
-                              )}
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handlePromoteAdmin(
+                                        user,
+                                      )
+                                    }
+                                    disabled={
+                                      isPromotingAdmin
+                                    }
+                                    className="
+                                      flex h-8 w-8
+                                      items-center
+                                      justify-center
+                                      rounded-lg
+                                      text-slate-400
+                                      transition
+                                      hover:bg-amber-50
+                                      hover:text-amber-600
+                                      disabled:opacity-50
+                                    "
+                                    title="Make admin"
+                                  >
+                                    {isPromotingAdmin ? (
+                                      <Loader2
+                                        size={
+                                          14
+                                        }
+                                        className="animate-spin"
+                                      />
+                                    ) : (
+                                      <ShieldCheck
+                                        size={
+                                          15
+                                        }
+                                      />
+                                    )}
+                                  </button>
 
-                              {!admin && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleRemoveParticipant(
-                                      user,
-                                    )
-                                  }
-                                  disabled={
-                                    isRemovingParticipant
-                                  }
-                                  className="
-                                    flex h-8 w-8
-                                    items-center
-                                    justify-center
-                                    rounded-lg
-                                    text-slate-400
-                                    transition
-                                    hover:bg-red-50
-                                    hover:text-red-600
-                                    disabled:opacity-50
-                                  "
-                                  title="Remove participant"
-                                >
-                                  {isRemovingParticipant ? (
-                                    <Loader2
-                                      size={
-                                        14
-                                      }
-                                      className="animate-spin"
-                                    />
-                                  ) : (
-                                    <X
-                                      size={
-                                        15
-                                      }
-                                    />
-                                  )}
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleRemoveParticipant(
+                                        user,
+                                      )
+                                    }
+                                    disabled={
+                                      isRemovingParticipant
+                                    }
+                                    className="
+                                      flex h-8 w-8
+                                      items-center
+                                      justify-center
+                                      rounded-lg
+                                      text-slate-400
+                                      transition
+                                      hover:bg-red-50
+                                      hover:text-red-600
+                                      disabled:opacity-50
+                                    "
+                                    title="Remove participant"
+                                  >
+                                    {isRemovingParticipant ? (
+                                      <Loader2
+                                        size={
+                                          14
+                                        }
+                                        className="animate-spin"
+                                      />
+                                    ) : (
+                                      <X
+                                        size={
+                                          15
+                                        }
+                                      />
+                                    )}
+                                  </button>
+                                </>
                               )}
                             </div>
                           )}
@@ -1337,6 +1529,7 @@ export default function GroupModal({
             "add" &&
             isAdmin && (
               <div className="px-5 py-4">
+
                 {/* SEARCH */}
 
                 <div
@@ -1648,22 +1841,17 @@ export default function GroupModal({
                 <button
                   type="button"
                   onClick={() => {
-                    setSelectedUsers(
-                      [],
-                    );
+                    setSelectedUsers([]);
 
-                    setSearchQuery(
-                      "",
-                    );
+                    setSearchQuery("");
 
-                    setActionError(
-                      "",
-                    );
+                    setActionError("");
 
                     setActiveSection(
                       "members",
                     );
                   }}
+                  disabled={isBusy}
                   className="
                     flex-1
                     rounded-xl
@@ -1675,6 +1863,7 @@ export default function GroupModal({
                     text-slate-600
                     transition
                     hover:bg-slate-50
+                    disabled:opacity-50
                   "
                 >
                   Cancel
@@ -1739,6 +1928,7 @@ export default function GroupModal({
                     true,
                   )
                 }
+                disabled={isBusy}
                 className="
                   flex w-full
                   items-center
@@ -1753,6 +1943,7 @@ export default function GroupModal({
                   text-red-600
                   transition
                   hover:bg-red-100
+                  disabled:opacity-50
                 "
               >
                 <LogOut
@@ -1776,6 +1967,7 @@ export default function GroupModal({
                       true,
                     )
                   }
+                  disabled={isBusy}
                   className="
                     flex w-full
                     items-center
@@ -1790,6 +1982,7 @@ export default function GroupModal({
                     text-slate-600
                     transition
                     hover:bg-slate-100
+                    disabled:opacity-50
                   "
                 >
                   <LogOut
@@ -1806,6 +1999,7 @@ export default function GroupModal({
                       true,
                     )
                   }
+                  disabled={isBusy}
                   className="
                     flex w-full
                     items-center
@@ -1820,6 +2014,7 @@ export default function GroupModal({
                     text-red-600
                     transition
                     hover:bg-red-100
+                    disabled:opacity-50
                   "
                 >
                   <Trash2
@@ -1885,6 +2080,9 @@ export default function GroupModal({
                     false,
                   )
                 }
+                disabled={
+                  isRemovingParticipant
+                }
                 className="
                   flex-1
                   rounded-xl
@@ -1893,6 +2091,7 @@ export default function GroupModal({
                   text-sm
                   font-semibold
                   text-slate-600
+                  disabled:opacity-50
                 "
               >
                 Cancel
@@ -1993,6 +2192,8 @@ export default function GroupModal({
             >
               This action will permanently
               delete the group for everyone.
+              All group messages will also
+              be removed.
             </p>
 
             <div className="mt-5 flex gap-2">
@@ -2003,6 +2204,9 @@ export default function GroupModal({
                     false,
                   )
                 }
+                disabled={
+                  isDeletingGroup
+                }
                 className="
                   flex-1
                   rounded-xl
@@ -2011,6 +2215,7 @@ export default function GroupModal({
                   text-sm
                   font-semibold
                   text-slate-600
+                  disabled:opacity-50
                 "
               >
                 Cancel
@@ -2020,6 +2225,9 @@ export default function GroupModal({
                 type="button"
                 onClick={
                   handleDeleteGroup
+                }
+                disabled={
+                  isDeletingGroup
                 }
                 className="
                   flex flex-1
@@ -2033,13 +2241,23 @@ export default function GroupModal({
                   font-semibold
                   text-white
                   hover:bg-red-700
+                  disabled:opacity-50
                 "
               >
-                <Trash2
-                  size={15}
-                />
+                {isDeletingGroup ? (
+                  <Loader2
+                    size={15}
+                    className="animate-spin"
+                  />
+                ) : (
+                  <Trash2
+                    size={15}
+                  />
+                )}
 
-                Delete
+                {isDeletingGroup
+                  ? "Deleting..."
+                  : "Delete"}
               </button>
             </div>
           </div>
