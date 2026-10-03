@@ -471,6 +471,71 @@ export default function MessageBubble({
   onReaction,
 }: MessageBubbleProps) {
   /* ----------------------------------
+     SYSTEM MESSAGE
+  ---------------------------------- */
+
+  /*
+   * System messages are things like:
+   *
+   * "Aminul left this group"
+   * "Rahim removed Karim from this group"
+   * "Aminul joined this group"
+   *
+   * They should NOT behave like normal
+   * chat messages.
+   */
+
+  if (message.type === "system") {
+    return (
+      <div className="flex w-full justify-center py-2">
+        <div
+          className="
+            max-w-[85%]
+            rounded-full
+            border
+            border-slate-200
+            bg-slate-100
+            px-4
+            py-1.5
+            text-center
+            shadow-sm
+            dark:border-slate-700
+            dark:bg-slate-800
+          "
+        >
+          <p
+            className="
+              text-xs
+              font-medium
+              leading-5
+              text-slate-500
+              dark:text-slate-400
+            "
+          >
+            {message.text ||
+              "Group activity"}
+          </p>
+
+          {message.createdAt && (
+            <p
+              className="
+                mt-0.5
+                text-[9px]
+                text-slate-400
+                dark:text-slate-500
+              "
+            >
+              {formatTime(
+                message.createdAt,
+              )}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  /* ----------------------------------
      Menu State
   ---------------------------------- */
 

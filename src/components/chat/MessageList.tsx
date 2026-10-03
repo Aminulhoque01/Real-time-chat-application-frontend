@@ -151,6 +151,18 @@ export default function MessageList({
     messages.forEach(
       (message) => {
         // -----------------------------
+        // System messages do not need
+        // read / delivered handling
+        // -----------------------------
+
+        if (
+          message.type ===
+          "system"
+        ) {
+          return;
+        }
+
+        // -----------------------------
         // Ignore deleted messages
         // -----------------------------
 
@@ -292,7 +304,7 @@ export default function MessageList({
 
             return (
               <MessageBubble
-                key={message._id}
+                key={String(message._id)}
                 message={message}
                 isMine={isMine}
 

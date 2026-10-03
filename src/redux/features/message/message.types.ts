@@ -18,12 +18,27 @@ export interface MessageAttachment {
   mimeType?: string;
 }
 
+export type MessageType = "text" | "system";
+
 export interface Message {
-  deletedAt: string | null;
   _id: string;
+
   conversationId: string;
 
   senderId: string | MessageUser;
+
+  /**
+   * Normal chat message or system/activity message.
+   *
+   * text:
+   *   Normal user message
+   *
+   * system:
+   *   Group activity such as:
+   *   "Aminul left this group"
+   *   "Aminul removed Rahim from this group"
+   */
+  type: MessageType;
 
   text: string;
 
@@ -35,7 +50,10 @@ export interface Message {
 
   isDeleted?: boolean;
 
+  deletedAt: string | null;
+
   deliveredTo?: string[];
+
   readBy?: string[];
 
   reactions?: unknown[];
@@ -73,5 +91,3 @@ export interface MessagesResponse {
     pagination: MessagePagination;
   };
 }
-
-
