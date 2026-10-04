@@ -47,10 +47,18 @@ type SidebarAttachment = {
   type?: string | null;
 };
 
+type SidebarReaction = {
+  emoji?: string | null;
+  userId?: string | null;
+};
+
 type SidebarLastMessage = {
   text?: string | null;
   createdAt?: string | null;
+
   attachments?: SidebarAttachment[] | null;
+
+  reactions?: SidebarReaction[] | null;
 };
 
 /* =========================================================
@@ -168,6 +176,60 @@ const getConversationAvatar = (
 };
 
 /* =========================================================
+   GET REACTION PREVIEW
+========================================================= */
+
+const getReactionPreview = (
+  reactions?: SidebarReaction[] | null,
+): string => {
+  if (
+    !Array.isArray(reactions) ||
+    reactions.length === 0
+  ) {
+    return "";
+  }
+
+  /*
+   * Collect valid emojis only.
+   */
+  const emojis = reactions
+    .map((reaction) =>
+      typeof reaction?.emoji === "string"
+        ? reaction.emoji.trim()
+        : "",
+    )
+    .filter(
+      (
+        emoji,
+      ): emoji is string =>
+        Boolean(emoji),
+    );
+
+  if (emojis.length === 0) {
+    return "";
+  }
+
+  /*
+   * Remove duplicate emojis.
+   *
+   * Example:
+   *
+   * ❤️
+   * ❤️
+   * 😂
+   *
+   * becomes:
+   *
+   * ❤️ 😂
+   */
+  const uniqueEmojis = [
+    ...new Set(emojis),
+  ];
+
+  return uniqueEmojis.join(" ");
+};
+
+/* =========================================================
    LAST MESSAGE PREVIEW
 ========================================================= */
 
@@ -185,21 +247,36 @@ const getLastMessagePreview = (
     rawLastMessage as unknown as
       SidebarLastMessage;
 
-  /* -------------------------
-     TEXT
-  ------------------------- */
+  /* =======================================================
+     REACTIONS
+  ======================================================= */
 
-  if (
+  const reactionPreview =
+    getReactionPreview(
+      lastMessage.reactions,
+    );
+
+  /* =======================================================
+     TEXT
+  ======================================================= */
+
+  const text =
     typeof lastMessage.text ===
-      "string" &&
-    lastMessage.text.trim()
-  ) {
-    return lastMessage.text;
+      "string"
+      ? lastMessage.text.trim()
+      : "";
+
+  if (text) {
+    if (reactionPreview) {
+      return `${text}  ${reactionPreview}`;
+    }
+
+    return text;
   }
 
-  /* -------------------------
+  /* =======================================================
      ATTACHMENTS
-  ------------------------- */
+  ======================================================= */
 
   const attachments =
     lastMessage.attachments;
@@ -211,23 +288,58 @@ const getLastMessagePreview = (
     const firstAttachment =
       attachments[0];
 
+    let attachmentPreview =
+      "📎 File";
+
     switch (
       firstAttachment?.type
         ?.toLowerCase()
     ) {
       case "audio":
-        return "🎤 Voice message";
+        attachmentPreview =
+          "🎤 Voice message";
+        break;
 
       case "video":
-        return "🎥 Video";
+        attachmentPreview =
+          "🎥 Video";
+        break;
 
       case "image":
-        return "🖼️ Image";
+        attachmentPreview =
+          "🖼️ Image";
+        break;
+
+      case "document":
+      case "pdf":
+        attachmentPreview =
+          "📄 Document";
+        break;
 
       default:
-        return "📎 File";
+        attachmentPreview =
+          "📎 File";
+        break;
     }
+
+    if (reactionPreview) {
+      return `${attachmentPreview}  ${reactionPreview}`;
+    }
+
+    return attachmentPreview;
   }
+
+  /* =======================================================
+     REACTION ONLY
+  ======================================================= */
+
+  if (reactionPreview) {
+    return reactionPreview;
+  }
+
+  /* =======================================================
+     FALLBACK
+  ======================================================= */
 
   return "No messages yet";
 };
@@ -257,8 +369,10 @@ export default function ChatSidebar({
 
   const {
     data: conversations = [],
-    isLoading: isConversationsLoading,
-    isError: isConversationsError,
+    isLoading:
+      isConversationsLoading,
+    isError:
+      isConversationsError,
   } = useGetConversationsQuery();
 
   /* =======================================================
@@ -345,15 +459,8 @@ export default function ChatSidebar({
       conversationId,
     );
 
-    /*
-     * Clear search after opening
-     * conversation.
-     */
     setSearch("");
 
-    /*
-     * Close sidebar on mobile.
-     */
     onClose();
   };
 
@@ -373,41 +480,18 @@ export default function ChatSidebar({
     }
 
     try {
-      /*
-       * Backend:
-       *
-       * POST /conversation
-       *
-       * {
-       *   participantId: "USER_ID"
-       * }
-       *
-       * Backend will:
-       * - return existing conversation
-       * OR
-       * - create new conversation
-       */
       const conversation =
         await createDirectConversation({
           participantId,
         }).unwrap();
 
-      /*
-       * Clear search.
-       */
       setSearch("");
 
-      /*
-       * Automatically open conversation.
-       */
       if (conversation?._id) {
         onSelectConversation(
           conversation._id,
         );
 
-        /*
-         * Close sidebar on mobile.
-         */
         onClose();
       }
     } catch (error) {
@@ -451,15 +535,7 @@ export default function ChatSidebar({
       .toUpperCase();
 
   /* =======================================================
-     FILTER EXISTING CONVERSATIONS
-     
-     IMPORTANT:
-     When search is empty:
-       -> show all conversations
-     
-     When search has text:
-       -> DO NOT filter conversations
-       -> show USER SEARCH results instead
+     CONVERSATION LIST
   ======================================================= */
 
   const conversationList =
@@ -510,7 +586,7 @@ export default function ChatSidebar({
             px-5 pb-4 pt-6
           "
         >
-          {/* Header Title */}
+          {/* HEADER TITLE */}
 
           <div
             className="
@@ -571,9 +647,7 @@ export default function ChatSidebar({
             </button>
           </div>
 
-          {/* ==================================================
-              SEARCH
-          ================================================== */}
+          {/* SEARCH */}
 
           <div className="relative">
             <Search
@@ -939,8 +1013,6 @@ export default function ChatSidebar({
 
           {/* ==================================================
               EXISTING CONVERSATIONS
-              
-              Only shown when search is empty.
           ================================================== */}
 
           {!isSearching && (
@@ -1244,6 +1316,8 @@ export default function ChatSidebar({
                             flex-1
                           "
                         >
+                          {/* NAME + TIME */}
+
                           <div
                             className="
                               flex
@@ -1282,6 +1356,8 @@ export default function ChatSidebar({
                               )}
                             </span>
                           </div>
+
+                          {/* LAST MESSAGE + UNREAD */}
 
                           <div
                             className="

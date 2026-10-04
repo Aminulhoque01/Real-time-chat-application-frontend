@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Menu } from "lucide-react";
 
 import ChatHeader from "./ChatHeader";
 import MessageComposer, {
@@ -9,7 +10,7 @@ import MessageComposer, {
 import MessageList from "./MessageList";
 import TypingIndicator from "./TypingIndicator";
 import EmptyChat from "./EmptyChat";
- 
+import GroupModal from "./GroupModal";
 
 import type {
   Conversation,
@@ -17,7 +18,6 @@ import type {
 } from "@/src/redux/features/conversation/conversation.types";
 
 import type { Message } from "@/src/redux/features/message/message.types";
-import GroupModal from "./GroupModal";
 
 // ==================================================
 // PROPS
@@ -119,7 +119,7 @@ interface ChatUIProps {
   isSending?: boolean;
 
   // ==================================================
-  // OPTIONAL GROUP CALLBACK
+  // GROUP CALLBACKS
   // ==================================================
 
   onGroupUpdated?: (
@@ -268,8 +268,80 @@ export default function ChatUI({
 
   if (!conversation) {
     return (
-      <main className="flex min-h-0 flex-1 flex-col bg-white">
-        <EmptyChat />
+      <main
+        className="
+          flex
+          min-h-0
+          flex-1
+          flex-col
+          bg-white
+        "
+      >
+        {/* ==================================================
+            MOBILE EMPTY HEADER
+        ================================================== */}
+
+        <div
+          className="
+            flex
+            h-[68px]
+            shrink-0
+            items-center
+            border-b
+            border-slate-100
+            bg-white
+            px-3
+            lg:hidden
+          "
+        >
+          <button
+            type="button"
+            onClick={onOpenSidebar}
+            aria-label="Open conversations"
+            title="Open conversations"
+            className="
+              flex
+              h-10
+              w-10
+              shrink-0
+              items-center
+              justify-center
+              rounded-xl
+              border
+              border-slate-200
+              bg-slate-50
+              text-slate-600
+              transition
+              hover:bg-slate-100
+              hover:text-slate-900
+              active:scale-95
+            "
+          >
+            <Menu
+              size={20}
+              strokeWidth={2}
+            />
+          </button>
+
+          <span
+            className="
+              ml-3
+              text-sm
+              font-semibold
+              text-slate-700
+            "
+          >
+            Messages
+          </span>
+        </div>
+
+        {/* ==================================================
+            EMPTY CHAT
+        ================================================== */}
+
+        <div className="min-h-0 flex-1">
+          <EmptyChat />
+        </div>
       </main>
     );
   }
@@ -369,7 +441,15 @@ export default function ChatUI({
   // ==================================================
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col bg-white">
+    <main
+      className="
+        flex
+        min-h-0
+        flex-1
+        flex-col
+        bg-white
+      "
+    >
       {/* ==================================================
           CHAT HEADER
       ================================================== */}
@@ -394,7 +474,13 @@ export default function ChatUI({
           MESSAGE LIST
       ================================================== */}
 
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div
+        className="
+          min-h-0
+          flex-1
+          overflow-hidden
+        "
+      >
         <MessageList
           conversationId={
             conversation._id

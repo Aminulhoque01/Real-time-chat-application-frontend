@@ -8,6 +8,8 @@ import {
 
 import { useRouter } from "next/navigation";
 
+import { Menu } from "lucide-react";
+
 import ChatSidebar from "./ChatSidebar";
 import ChatUI from "./ChatUI";
 import ProfileModal from "../ProfileModal/ProfileModal";
@@ -55,7 +57,13 @@ import useChatSocket from "@/src/hooks/useChatSocket";
 // PUSH NOTIFICATION
 // =====================================================
 
-import { usePushNotification } from "@/src/hooks/usePushNotification";
+import {
+  usePushNotification,
+} from "@/src/hooks/usePushNotification";
+
+// =====================================================
+// CHAT LAYOUT
+// =====================================================
 
 export default function ChatLayout() {
   // =====================================================
@@ -80,14 +88,6 @@ export default function ChatLayout() {
 
   // =====================================================
   // PUSH NOTIFICATION
-  // =====================================================
-  // This will:
-  // 1. Ask notification permission
-  // 2. Register Firebase service worker
-  // 3. Generate FCM token
-  // 4. Send token to backend
-  //
-  // It only runs when a logged-in user exists.
   // =====================================================
 
   usePushNotification({
@@ -124,12 +124,21 @@ export default function ChatLayout() {
 
   // =====================================================
   // SIDEBAR
+  //
+  // IMPORTANT:
+  //
+  // true  = sidebar visible
+  // false = sidebar hidden on mobile
+  //
+  // Desktop:
+  // ChatSidebar uses lg:translate-x-0,
+  // so it stays visible regardless of this state.
   // =====================================================
 
   const [
     isSidebarOpen,
     setIsSidebarOpen,
-  ] = useState(false);
+  ] = useState(true);
 
   // =====================================================
   // TYPING USER
@@ -251,6 +260,19 @@ export default function ChatLayout() {
     typingUser?.name ||
     typingUser?.phone ||
     "Someone";
+
+  // =====================================================
+  // AUTO OPEN SIDEBAR AFTER LOGIN
+  //
+  // When auth user becomes available after login,
+  // make sure the conversation list is accessible.
+  // =====================================================
+
+  useEffect(() => {
+    if (user?._id) {
+      setIsSidebarOpen(true);
+    }
+  }, [user?._id]);
 
   // =====================================================
   // TYPING START
@@ -810,9 +832,18 @@ export default function ChatLayout() {
         ),
       );
 
+      // ==========================================
+      // SELECT CONVERSATION
+      // ==========================================
+
       setSelectedConversationId(
         conversationId,
       );
+
+      // ==========================================
+      // MOBILE:
+      // CLOSE SIDEBAR
+      // ==========================================
 
       setIsSidebarOpen(false);
     };
@@ -896,18 +927,18 @@ export default function ChatLayout() {
   // =====================================================
 
   const handleOpenSidebar =
-    () => {
+    useCallback(() => {
       setIsSidebarOpen(true);
-    };
+    }, []);
 
   // =====================================================
   // CLOSE SIDEBAR
   // =====================================================
 
   const handleCloseSidebar =
-    () => {
+    useCallback(() => {
       setIsSidebarOpen(false);
-    };
+    }, []);
 
   // =====================================================
   // OPEN OTHER USER PROFILE
@@ -1330,6 +1361,8 @@ export default function ChatLayout() {
 
         setEditBio("");
 
+        setIsSidebarOpen(false);
+
         // ==========================================
         // DISCONNECT SOCKET
         // ==========================================
@@ -1453,6 +1486,51 @@ export default function ChatLayout() {
             lg:hidden
           "
         />
+      )}
+
+      {/* =================================================
+          MOBILE FALLBACK MENU BUTTON
+          
+          When sidebar is closed and user is on mobile,
+          this button is always available.
+      ================================================= */}
+
+      {!isSidebarOpen && (
+        <button
+          type="button"
+          onClick={
+            handleOpenSidebar
+          }
+          aria-label="Open conversations"
+          title="Open conversations"
+          className="
+            fixed
+            left-3
+            top-3
+            z-[60]
+            flex
+            h-11
+            w-11
+            items-center
+            justify-center
+            rounded-xl
+            border
+            border-slate-200
+            bg-white
+            text-slate-700
+            shadow-lg
+            transition
+            hover:bg-slate-50
+            hover:text-slate-900
+            active:scale-95
+            lg:hidden
+          "
+        >
+          <Menu
+            size={21}
+            strokeWidth={2}
+          />
+        </button>
       )}
 
       {/* =================================================
