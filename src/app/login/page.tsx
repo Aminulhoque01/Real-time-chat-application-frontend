@@ -41,8 +41,8 @@ export default function LoginPage() {
 
       dispatch(
         setCredentials({
-          user: response.data.user,
-          token: response.data?.accessToken,
+          user: response.data?.user,
+          token: response.data?.token,
         }),
       );
 

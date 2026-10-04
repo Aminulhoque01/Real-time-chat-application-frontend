@@ -29,7 +29,6 @@
 // body,
 // }),
 
-
 //     invalidatesTags: [
 //       "Auth",
 //       "User",
@@ -228,7 +227,6 @@
 //     }),
 // }),
 
-
 // });
 
 // export const {
@@ -241,8 +239,6 @@
 // useUpdateMyAvatarMutation,
 // useUpdateMyProfileMutation,
 // } = authApi;
-
-
 
 import { baseApi } from "../../api/baseApi";
 
@@ -323,8 +319,7 @@ export const authApi = baseApi.injectEndpoints({
     login: builder.mutation<
       ApiResponse<{
         user: User;
-        accessToken: string;
-        refreshToken?: string;
+        token: string;
       }>,
       {
         phone: string;
@@ -351,9 +346,7 @@ export const authApi = baseApi.injectEndpoints({
         method: "GET",
       }),
 
-      transformResponse: (
-        response: ApiResponse<User>,
-      ) => response.data,
+      transformResponse: (response: ApiResponse<User>) => response.data,
 
       providesTags: ["User"],
     }),
@@ -374,9 +367,7 @@ export const authApi = baseApi.injectEndpoints({
         method: "GET",
       }),
 
-      transformResponse: (
-        response: ApiResponse<User>,
-      ) => response.data,
+      transformResponse: (response: ApiResponse<User>) => response.data,
 
       providesTags: ["User"],
     }),
@@ -391,10 +382,7 @@ export const authApi = baseApi.injectEndpoints({
      * /users?page=1&limit=100
      * ======================================
      */
-    getAllUsers: builder.query<
-      UsersData,
-      UsersQueryParams | void
-    >({
+    getAllUsers: builder.query<UsersData, UsersQueryParams | void>({
       query: (params) => ({
         url: "/user",
         method: "GET",
@@ -406,9 +394,7 @@ export const authApi = baseApi.injectEndpoints({
         },
       }),
 
-      transformResponse: (
-        response: UsersResponse,
-      ) => response.data,
+      transformResponse: (response: UsersResponse) => response.data,
 
       providesTags: ["User"],
     }),
@@ -420,15 +406,8 @@ export const authApi = baseApi.injectEndpoints({
      * GET /api/users/search?query=rahim
      * ======================================
      */
-    searchUsers: builder.query<
-      UsersData,
-      SearchUsersParams
-    >({
-      query: ({
-        query,
-        page = 1,
-        limit = 20,
-      }) => ({
+    searchUsers: builder.query<UsersData, SearchUsersParams>({
+      query: ({ query, page = 1, limit = 20 }) => ({
         url: "/user/search",
         method: "GET",
         params: {
@@ -438,9 +417,7 @@ export const authApi = baseApi.injectEndpoints({
         },
       }),
 
-      transformResponse: (
-        response: UsersResponse,
-      ) => response.data,
+      transformResponse: (response: UsersResponse) => response.data,
 
       providesTags: ["User"],
     }),
@@ -452,19 +429,14 @@ export const authApi = baseApi.injectEndpoints({
      * PATCH /api/user/me/profile
      * ======================================
      */
-    updateMyProfile: builder.mutation<
-      User,
-      UpdateProfileRequest
-    >({
+    updateMyProfile: builder.mutation<User, UpdateProfileRequest>({
       query: (body) => ({
         url: "/user/me/profile",
         method: "PATCH",
         body,
       }),
 
-      transformResponse: (
-        response: ApiResponse<User>,
-      ) => response.data,
+      transformResponse: (response: ApiResponse<User>) => response.data,
 
       invalidatesTags: ["User"],
     }),
@@ -476,19 +448,15 @@ export const authApi = baseApi.injectEndpoints({
      * PATCH /api/user/me/avatar
      * ======================================
      */
-    updateMyAvatar: builder.mutation<
-      UpdateAvatarResponse,
-      FormData
-    >({
+    updateMyAvatar: builder.mutation<UpdateAvatarResponse, FormData>({
       query: (formData) => ({
         url: "/user/me/avatar",
         method: "PATCH",
         body: formData,
       }),
 
-      transformResponse: (
-        response: ApiResponse<UpdateAvatarResponse>,
-      ) => response.data,
+      transformResponse: (response: ApiResponse<UpdateAvatarResponse>) =>
+        response.data,
 
       invalidatesTags: ["User"],
     }),
@@ -498,18 +466,14 @@ export const authApi = baseApi.injectEndpoints({
      * Block Status
      * ======================================
      */
-    getBlockStatus: builder.query<
-      BlockStatusResponse,
-      string
-    >({
+    getBlockStatus: builder.query<BlockStatusResponse, string>({
       query: (userId) => ({
         url: `/block/status/${userId}`,
         method: "GET",
       }),
 
-      transformResponse: (
-        response: ApiResponse<BlockStatusResponse>,
-      ) => response.data,
+      transformResponse: (response: ApiResponse<BlockStatusResponse>) =>
+        response.data,
 
       providesTags: ["Block"],
     }),
@@ -519,10 +483,7 @@ export const authApi = baseApi.injectEndpoints({
      * Block User
      * ======================================
      */
-    blockUser: builder.mutation<
-      unknown,
-      string
-    >({
+    blockUser: builder.mutation<unknown, string>({
       query: (userId) => ({
         url: `/block/${userId}`,
         method: "POST",
@@ -536,10 +497,7 @@ export const authApi = baseApi.injectEndpoints({
      * Unblock User
      * ======================================
      */
-    unblockUser: builder.mutation<
-      unknown,
-      string
-    >({
+    unblockUser: builder.mutation<unknown, string>({
       query: (userId) => ({
         url: `/block/${userId}`,
         method: "DELETE",

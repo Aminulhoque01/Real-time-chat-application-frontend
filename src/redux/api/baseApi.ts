@@ -2,35 +2,43 @@ import {
   createApi,
   fetchBaseQuery,
 } from "@reduxjs/toolkit/query/react";
-import { RootState } from "../store";
 
+const baseQuery = fetchBaseQuery({
+  baseUrl: process.env.NEXT_PUBLIC_API_URL,
 
+  prepareHeaders: (headers) => {
+    if (typeof window !== "undefined") {
+      const savedAuth =
+        localStorage.getItem("chat_auth");
+
+      if (savedAuth) {
+        try {
+          const parsedAuth = JSON.parse(savedAuth);
+
+          const token = parsedAuth?.token;
+
+          if (token) {
+            headers.set(
+              "Authorization",
+              `Bearer ${token}`,
+            );
+          }
+        } catch (error) {
+          console.error(
+            "Failed to parse auth token:",
+            error,
+          );
+        }
+      }
+    }
+
+    return headers;
+  },
+});
 
 export const baseApi = createApi({
   reducerPath: "api",
-
-  baseQuery: fetchBaseQuery({
-    baseUrl:
-      process.env.NEXT_PUBLIC_API_URL ||
-      "http://localhost:5000/api",
-
-    credentials: "include",
-
-    prepareHeaders: (headers, { getState }) => {
-      const state = getState() as RootState;
-
-      const token = state.auth.token;
-
-      if (token) {
-        headers.set(
-          "Authorization",
-          `Bearer ${token}`,
-        );
-      }
-
-      return headers;
-    },
-  }),
+  baseQuery,
 
   tagTypes: [
     "Auth",
