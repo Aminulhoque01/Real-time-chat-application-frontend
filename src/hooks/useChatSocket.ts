@@ -424,7 +424,7 @@ export default function useChatSocket({
 
     const audio =
       new Audio(
-        "/incoming.mp3",
+        "/notification.mp3",
       );
 
     audio.preload =
@@ -1375,11 +1375,20 @@ export default function useChatSocket({
         // ==================================================
         // NORMAL MESSAGE SOUND
         // ==================================================
+        //
+        // Play notification.mp3 for every incoming normal
+        // message. This also works when the conversation is
+        // brand-new and the user has not opened/joined that
+        // conversation yet.
+        //
+        // Do NOT play for:
+        // - system messages
+        // - our own messages
+        // ==================================================
 
         if (
           !isSystemMessage &&
-          !isOwnMessage &&
-          isCurrentConversation
+          !isOwnMessage
         ) {
           playIncomingMessageSound();
         }
@@ -1537,6 +1546,20 @@ export default function useChatSocket({
                 );
 
               if (!conversation) {
+                // This is the important case for a NEW
+                // conversation. The message arrived through
+                // the personal user room, but this conversation
+                // does not exist in the current sidebar cache.
+                //
+                // Refetch the conversation list so the new
+                // conversation appears immediately without
+                // a page reload.
+                dispatch(
+                  conversationApi.util.invalidateTags([
+                    "Conversation",
+                  ]),
+                );
+
                 return;
               }
 
