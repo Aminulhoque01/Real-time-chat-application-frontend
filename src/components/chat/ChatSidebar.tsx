@@ -6,6 +6,7 @@ import {
   Plus,
   Search,
   Users,
+  Loader2,
 } from "lucide-react";
 
 import { useMemo, useState } from "react";
@@ -14,7 +15,12 @@ import { useAppSelector } from "@/src/redux/hooks";
 
 import {
   useGetConversationsQuery,
+  useCreateDirectConversationMutation,
 } from "@/src/redux/features/conversation/conversationApi";
+
+import {
+  useSearchUsersQuery,
+} from "@/src/redux/features/auth/authApi";
 
 import type {
   Conversation,
@@ -37,22 +43,10 @@ interface ChatSidebarProps {
   onOpenProfile: () => void;
 }
 
-/*
- * We only need the attachment type here
- * for the sidebar preview.
- *
- * The actual Message type can remain unchanged.
- */
 type SidebarAttachment = {
   type?: string | null;
 };
 
-/*
- * Last message shape used by this sidebar.
- *
- * This keeps the component safe even if the
- * attachments type in message.types.ts is generic.
- */
 type SidebarLastMessage = {
   text?: string | null;
   createdAt?: string | null;
@@ -129,20 +123,12 @@ const getConversationName = (
   conversation: Conversation,
   currentUserId?: string,
 ): string => {
-  /* -------------------------
-     Group
-  ------------------------- */
-
   if (conversation.type === "group") {
     return (
       conversation.name?.trim() ||
       "Group"
     );
   }
-
-  /* -------------------------
-     Direct
-  ------------------------- */
 
   const otherUser =
     getOtherParticipant(
@@ -165,20 +151,12 @@ const getConversationAvatar = (
   conversation: Conversation,
   currentUserId?: string,
 ): string | null => {
-  /* -------------------------
-     Group
-  ------------------------- */
-
   if (conversation.type === "group") {
     return (
       conversation.groupPhoto ||
       null
     );
   }
-
-  /* -------------------------
-     Direct
-  ------------------------- */
 
   const otherUser =
     getOtherParticipant(
@@ -196,14 +174,6 @@ const getConversationAvatar = (
 const getLastMessagePreview = (
   conversation: Conversation,
 ): string => {
-  /*
-   * Conversation.lastMessage comes from the
-   * backend and its exact attachment type
-   * may be broader than what the sidebar needs.
-   *
-   * We normalize only the fields required here.
-   */
-
   const rawLastMessage =
     conversation.lastMessage;
 
@@ -216,7 +186,7 @@ const getLastMessagePreview = (
       SidebarLastMessage;
 
   /* -------------------------
-     Text Message
+     TEXT
   ------------------------- */
 
   if (
@@ -228,7 +198,7 @@ const getLastMessagePreview = (
   }
 
   /* -------------------------
-     Attachments
+     ATTACHMENTS
   ------------------------- */
 
   const attachments =
@@ -287,16 +257,55 @@ export default function ChatSidebar({
 
   const {
     data: conversations = [],
-    isLoading,
-    isError,
+    isLoading: isConversationsLoading,
+    isError: isConversationsError,
   } = useGetConversationsQuery();
 
   /* =======================================================
-     SEARCH
+     SEARCH STATE
   ======================================================= */
 
   const [search, setSearch] =
     useState("");
+
+  const trimmedSearch =
+    search.trim();
+
+  const isSearching =
+    trimmedSearch.length > 0;
+
+  /* =======================================================
+     SEARCH USERS
+  ======================================================= */
+
+  const {
+    data: searchUsersData,
+    isLoading: isUsersLoading,
+    isFetching: isUsersFetching,
+    isError: isUsersError,
+  } = useSearchUsersQuery(
+    {
+      query: trimmedSearch,
+      page: 1,
+      limit: 20,
+    },
+    {
+      skip: !isSearching,
+    },
+  );
+
+  /* =======================================================
+     CREATE DIRECT CONVERSATION
+  ======================================================= */
+
+  const [
+    createDirectConversation,
+    {
+      isLoading:
+        isCreatingDirectConversation,
+    },
+  ] =
+    useCreateDirectConversationMutation();
 
   /* =======================================================
      CREATE GROUP MODAL
@@ -308,45 +317,25 @@ export default function ChatSidebar({
   ] = useState(false);
 
   /* =======================================================
-     FILTER CONVERSATIONS
+     SEARCH USERS RESULT
   ======================================================= */
 
-  const filteredConversations =
-    useMemo(() => {
-      const value =
-        search.trim().toLowerCase();
+  const searchUsers = useMemo(() => {
+    if (!searchUsersData?.users) {
+      return [];
+    }
 
-      if (!value) {
-        return conversations;
-      }
-
-      return conversations.filter(
-        (conversation) => {
-          const name =
-            getConversationName(
-              conversation,
-              user?._id,
-            ).toLowerCase();
-
-          const lastMessage =
-            getLastMessagePreview(
-              conversation,
-            ).toLowerCase();
-
-          return (
-            name.includes(value) ||
-            lastMessage.includes(value)
-          );
-        },
-      );
-    }, [
-      conversations,
-      search,
-      user?._id,
-    ]);
+    return searchUsersData.users.filter(
+      (searchUser) =>
+        searchUser._id !== user?._id,
+    );
+  }, [
+    searchUsersData,
+    user?._id,
+  ]);
 
   /* =======================================================
-     SELECT CONVERSATION
+     SELECT EXISTING CONVERSATION
   ======================================================= */
 
   const handleSelectConversation = (
@@ -357,10 +346,76 @@ export default function ChatSidebar({
     );
 
     /*
+     * Clear search after opening
+     * conversation.
+     */
+    setSearch("");
+
+    /*
      * Close sidebar on mobile.
-     * Desktop sidebar remains visible.
      */
     onClose();
+  };
+
+  /* =======================================================
+     START DIRECT CHAT
+  ======================================================= */
+
+  const handleStartDirectChat = async (
+    participantId: string,
+  ) => {
+    if (
+      !participantId ||
+      participantId === user?._id ||
+      isCreatingDirectConversation
+    ) {
+      return;
+    }
+
+    try {
+      /*
+       * Backend:
+       *
+       * POST /conversation
+       *
+       * {
+       *   participantId: "USER_ID"
+       * }
+       *
+       * Backend will:
+       * - return existing conversation
+       * OR
+       * - create new conversation
+       */
+      const conversation =
+        await createDirectConversation({
+          participantId,
+        }).unwrap();
+
+      /*
+       * Clear search.
+       */
+      setSearch("");
+
+      /*
+       * Automatically open conversation.
+       */
+      if (conversation?._id) {
+        onSelectConversation(
+          conversation._id,
+        );
+
+        /*
+         * Close sidebar on mobile.
+         */
+        onClose();
+      }
+    } catch (error) {
+      console.error(
+        "Failed to create direct conversation:",
+        error,
+      );
+    }
   };
 
   /* =======================================================
@@ -370,28 +425,13 @@ export default function ChatSidebar({
   const handleGroupCreated = (
     conversation: Conversation,
   ) => {
-    /*
-     * createGroup mutation invalidates
-     * Conversation tag.
-     *
-     * Therefore conversation list will
-     * automatically refresh.
-     */
-
     setIsCreateGroupOpen(false);
-
-    /*
-     * Automatically open newly created group.
-     */
 
     if (conversation?._id) {
       onSelectConversation(
         conversation._id,
       );
 
-      /*
-       * Close sidebar on mobile.
-       */
       onClose();
     }
   };
@@ -409,6 +449,30 @@ export default function ChatSidebar({
     currentUserName
       .charAt(0)
       .toUpperCase();
+
+  /* =======================================================
+     FILTER EXISTING CONVERSATIONS
+     
+     IMPORTANT:
+     When search is empty:
+       -> show all conversations
+     
+     When search has text:
+       -> DO NOT filter conversations
+       -> show USER SEARCH results instead
+  ======================================================= */
+
+  const conversationList =
+    useMemo(() => {
+      if (isSearching) {
+        return [];
+      }
+
+      return conversations;
+    }, [
+      conversations,
+      isSearching,
+    ]);
 
   /* =======================================================
      RENDER
@@ -480,7 +544,7 @@ export default function ChatSidebar({
               </p>
             </div>
 
-            {/* Create Group */}
+            {/* CREATE GROUP */}
 
             <button
               type="button"
@@ -531,14 +595,14 @@ export default function ChatSidebar({
                   event.target.value,
                 )
               }
-              placeholder="Search conversations..."
+              placeholder="Search users..."
               className="
                 h-11 w-full
                 rounded-xl
                 border
                 border-slate-200
                 bg-slate-50
-                pl-10 pr-4
+                pl-10 pr-10
                 text-sm
                 text-slate-700
                 outline-none
@@ -552,11 +616,29 @@ export default function ChatSidebar({
                 focus:ring-slate-100
               "
             />
+
+            {/* SEARCH LOADER */}
+
+            {isSearching &&
+              (isUsersLoading ||
+                isUsersFetching) && (
+                <Loader2
+                  size={17}
+                  className="
+                    absolute
+                    right-3
+                    top-1/2
+                    -translate-y-1/2
+                    animate-spin
+                    text-slate-400
+                  "
+                />
+              )}
           </div>
         </div>
 
         {/* ==================================================
-            CONVERSATIONS
+            CONTENT
         ================================================== */}
 
         <div
@@ -567,436 +649,702 @@ export default function ChatSidebar({
           "
         >
           {/* ==================================================
-              LOADING
+              USER SEARCH RESULTS
           ================================================== */}
 
-          {isLoading && (
-            <div className="space-y-2">
-              {[
-                1,
-                2,
-                3,
-                4,
-                5,
-                6,
-              ].map((item) => (
+          {isSearching && (
+            <>
+              {/* SEARCH ERROR */}
+
+              {isUsersError && (
                 <div
-                  key={item}
                   className="
-                    flex
-                    animate-pulse
-                    items-center
-                    gap-3
                     rounded-xl
-                    p-3
+                    border
+                    border-red-100
+                    bg-red-50
+                    p-4
+                    text-center
                   "
                 >
-                  <div
+                  <p
                     className="
-                      h-12 w-12
-                      rounded-full
-                      bg-slate-200
-                    "
-                  />
-
-                  <div
-                    className="
-                      flex-1
-                      space-y-2
+                      text-sm
+                      font-medium
+                      text-red-600
                     "
                   >
-                    <div
-                      className="
-                        h-3 w-28
-                        rounded
-                        bg-slate-200
-                      "
-                    />
+                    Failed to search
+                    users
+                  </p>
 
-                    <div
-                      className="
-                        h-3 w-40
-                        rounded
-                        bg-slate-100
-                      "
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* ==================================================
-              ERROR
-          ================================================== */}
-
-          {isError && (
-            <div
-              className="
-                rounded-xl
-                border
-                border-red-100
-                bg-red-50
-                p-4
-                text-center
-              "
-            >
-              <p
-                className="
-                  text-sm
-                  font-medium
-                  text-red-600
-                "
-              >
-                Failed to load
-                conversations
-              </p>
-
-              <p
-                className="
-                  mt-1
-                  text-xs
-                  text-red-400
-                "
-              >
-                Please try again.
-              </p>
-            </div>
-          )}
-
-          {/* ==================================================
-              EMPTY
-          ================================================== */}
-
-          {!isLoading &&
-            !isError &&
-            filteredConversations.length ===
-              0 && (
-              <div
-                className="
-                  flex h-64
-                  flex-col
-                  items-center
-                  justify-center
-                  text-center
-                "
-              >
-                <div
-                  className="
-                    mb-3
-                    flex h-14 w-14
-                    items-center
-                    justify-center
-                    rounded-2xl
-                    bg-slate-100
-                  "
-                >
-                  <MessageCircle
-                    size={25}
-                    className="text-slate-400"
-                  />
-                </div>
-
-                <p
-                  className="
-                    text-sm
-                    font-semibold
-                    text-slate-700
-                  "
-                >
-                  No conversations
-                </p>
-
-                <p
-                  className="
-                    mt-1
-                    max-w-[220px]
-                    text-xs
-                    text-slate-400
-                  "
-                >
-                  Start a new
-                  conversation to
-                  begin chatting.
-                </p>
-              </div>
-            )}
-
-          {/* ==================================================
-              CONVERSATION LIST
-          ================================================== */}
-
-          <div className="space-y-1">
-            {filteredConversations.map(
-              (conversation) => {
-                const name =
-                  getConversationName(
-                    conversation,
-                    user?._id,
-                  );
-
-                const avatar =
-                  getConversationAvatar(
-                    conversation,
-                    user?._id,
-                  );
-
-                const otherUser =
-                  getOtherParticipant(
-                    conversation,
-                    user?._id,
-                  );
-
-                const isGroup =
-                  conversation.type ===
-                  "group";
-
-                const isActive =
-                  conversation._id ===
-                  selectedConversationId;
-
-                const lastMessagePreview =
-                  getLastMessagePreview(
-                    conversation,
-                  );
-
-                const unreadCount =
-                  conversation.unreadCount ||
-                  0;
-
-                return (
-                  <button
-                    key={
-                      conversation._id
-                    }
-                    type="button"
-                    onClick={() =>
-                      handleSelectConversation(
-                        conversation._id,
-                      )
-                    }
-                    className={`
-                      group
-                      flex w-full
-                      items-center
-                      gap-3
-                      rounded-xl
-                      p-3
-                      text-left
-                      transition
-
-                      ${
-                        isActive
-                          ? "bg-slate-100"
-                          : "hover:bg-slate-50"
-                      }
-                    `}
+                  <p
+                    className="
+                      mt-1
+                      text-xs
+                      text-red-400
+                    "
                   >
-                    {/* ====================================
-                        AVATAR
-                    ==================================== */}
+                    Please try again.
+                  </p>
+                </div>
+              )}
 
-                    <div
+              {/* USER RESULTS */}
+
+              {!isUsersError &&
+                !isUsersLoading &&
+                searchUsers.length >
+                  0 && (
+                  <div className="space-y-1">
+                    <p
                       className="
-                        relative
-                        shrink-0
+                        px-2
+                        pb-2
+                        text-[11px]
+                        font-semibold
+                        uppercase
+                        tracking-wider
+                        text-slate-400
                       "
                     >
-                      {/* GROUP PHOTO */}
+                      Users
+                    </p>
 
-                      {isGroup &&
-                      avatar ? (
-                        <img
-                          src={avatar}
-                          alt={name}
-                          className="
-                            h-12 w-12
-                            rounded-full
-                            object-cover
-                          "
-                        />
-                      ) : /* DIRECT AVATAR */
+                    {searchUsers.map(
+                      (searchUser) => {
+                        const isCurrentUser =
+                          searchUser._id ===
+                          user?._id;
 
-                      !isGroup &&
-                        avatar ? (
-                        <img
-                          src={avatar}
-                          alt={name}
-                          className="
-                            h-12 w-12
-                            rounded-full
-                            object-cover
-                          "
-                        />
-                      ) : /* GROUP FALLBACK */
-
-                      isGroup ? (
-                        <div
-                          className="
-                            flex
-                            h-12 w-12
-                            items-center
-                            justify-center
-                            rounded-full
-                            bg-slate-900
-                            text-white
-                          "
-                        >
-                          <Users
-                            size={20}
-                          />
-                        </div>
-                      ) : (
-                        /* DIRECT FALLBACK */
-
-                        <div
-                          className="
-                            flex
-                            h-12 w-12
-                            items-center
-                            justify-center
-                            rounded-full
-                            bg-slate-900
-                            text-sm
-                            font-bold
-                            text-white
-                          "
-                        >
-                          {name
-                            .charAt(0)
-                            .toUpperCase()}
-                        </div>
-                      )}
-
-                      {/* ONLINE INDICATOR */}
-
-                      {!isGroup &&
-                        otherUser?.isOnline && (
-                          <span
-                            className="
-                              absolute
-                              bottom-0
-                              right-0
-                              h-3 w-3
-                              rounded-full
-                              border-2
-                              border-white
-                              bg-emerald-500
-                            "
-                          />
-                        )}
-                    </div>
-
-                    {/* ====================================
-                        CONVERSATION INFO
-                    ==================================== */}
-
-                    <div
-                      className="
-                        min-w-0
-                        flex-1
-                      "
-                    >
-                      {/* Name + Time */}
-
-                      <div
-                        className="
-                          flex
-                          items-center
-                          justify-between
-                          gap-2
-                        "
-                      >
-                        <p
-                          className={`
-                            truncate
-                            text-sm
-
-                            ${
-                              unreadCount > 0
-                                ? "font-bold text-slate-900"
-                                : "font-semibold text-slate-700"
+                        return (
+                          <button
+                            key={
+                              searchUser._id
                             }
-                          `}
-                        >
-                          {name}
-                        </p>
-
-                        <span
-                          className="
-                            shrink-0
-                            text-[10px]
-                            text-slate-400
-                          "
-                        >
-                          {formatTime(
-                            conversation
-                              .lastMessage
-                              ?.createdAt,
-                          )}
-                        </span>
-                      </div>
-
-                      {/* Last Message + Unread */}
-
-                      <div
-                        className="
-                          mt-1
-                          flex
-                          items-center
-                          justify-between
-                          gap-2
-                        "
-                      >
-                        <p
-                          className={`
-                            truncate
-                            text-xs
-
-                            ${
-                              unreadCount > 0
-                                ? "font-medium text-slate-600"
-                                : "text-slate-400"
+                            type="button"
+                            disabled={
+                              isCreatingDirectConversation ||
+                              isCurrentUser
                             }
-                          `}
-                        >
-                          {
-                            lastMessagePreview
-                          }
-                        </p>
-
-                        {/* Unread Badge */}
-
-                        {unreadCount > 0 && (
-                          <span
+                            onClick={() =>
+                              handleStartDirectChat(
+                                searchUser._id,
+                              )
+                            }
                             className="
-                              flex
-                              h-5
-                              min-w-5
-                              shrink-0
+                              group
+                              flex w-full
                               items-center
-                              justify-center
-                              rounded-full
-                              bg-slate-900
-                              px-1.5
-                              text-[10px]
-                              font-bold
-                              text-white
+                              gap-3
+                              rounded-xl
+                              p-3
+                              text-left
+                              transition
+                              hover:bg-slate-50
+                              disabled:cursor-not-allowed
+                              disabled:opacity-60
                             "
                           >
-                            {unreadCount >
-                            99
-                              ? "99+"
-                              : unreadCount}
-                          </span>
-                        )}
+                            {/* USER AVATAR */}
+
+                            <div
+                              className="
+                                relative
+                                shrink-0
+                              "
+                            >
+                              {searchUser.avatar ? (
+                                <img
+                                  src={
+                                    searchUser.avatar
+                                  }
+                                  alt={
+                                    searchUser.name
+                                  }
+                                  className="
+                                    h-12 w-12
+                                    rounded-full
+                                    object-cover
+                                  "
+                                />
+                              ) : (
+                                <div
+                                  className="
+                                    flex
+                                    h-12 w-12
+                                    items-center
+                                    justify-center
+                                    rounded-full
+                                    bg-slate-900
+                                    text-sm
+                                    font-bold
+                                    text-white
+                                  "
+                                >
+                                  {(
+                                    searchUser.name ||
+                                    searchUser.phone ||
+                                    "U"
+                                  )
+                                    .charAt(0)
+                                    .toUpperCase()}
+                                </div>
+                              )}
+
+                              {/* ONLINE */}
+
+                              {searchUser.isOnline && (
+                                <span
+                                  className="
+                                    absolute
+                                    bottom-0
+                                    right-0
+                                    h-3 w-3
+                                    rounded-full
+                                    border-2
+                                    border-white
+                                    bg-emerald-500
+                                  "
+                                />
+                              )}
+                            </div>
+
+                            {/* USER INFO */}
+
+                            <div
+                              className="
+                                min-w-0
+                                flex-1
+                              "
+                            >
+                              <p
+                                className="
+                                  truncate
+                                  text-sm
+                                  font-semibold
+                                  text-slate-800
+                                "
+                              >
+                                {
+                                  searchUser.name
+                                }
+                              </p>
+
+                              <p
+                                className="
+                                  mt-0.5
+                                  truncate
+                                  text-xs
+                                  text-slate-400
+                                "
+                              >
+                                {
+                                  searchUser.phone
+                                }
+                              </p>
+                            </div>
+
+                            {/* ACTION */}
+
+                            <div
+                              className="
+                                shrink-0
+                              "
+                            >
+                              {isCreatingDirectConversation ? (
+                                <Loader2
+                                  size={17}
+                                  className="
+                                    animate-spin
+                                    text-slate-400
+                                  "
+                                />
+                              ) : (
+                                <MessageCircle
+                                  size={18}
+                                  className="
+                                    text-slate-300
+                                    transition
+                                    group-hover:text-slate-700
+                                  "
+                                />
+                              )}
+                            </div>
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
+
+              {/* NO USER FOUND */}
+
+              {!isUsersError &&
+                !isUsersLoading &&
+                !isUsersFetching &&
+                searchUsers.length ===
+                  0 && (
+                  <div
+                    className="
+                      flex h-64
+                      flex-col
+                      items-center
+                      justify-center
+                      text-center
+                    "
+                  >
+                    <div
+                      className="
+                        mb-3
+                        flex h-14 w-14
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-slate-100
+                      "
+                    >
+                      <Search
+                        size={25}
+                        className="text-slate-400"
+                      />
+                    </div>
+
+                    <p
+                      className="
+                        text-sm
+                        font-semibold
+                        text-slate-700
+                      "
+                    >
+                      No users found
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        max-w-[220px]
+                        text-xs
+                        text-slate-400
+                      "
+                    >
+                      Try searching with
+                      another name or phone
+                      number.
+                    </p>
+                  </div>
+                )}
+            </>
+          )}
+
+          {/* ==================================================
+              EXISTING CONVERSATIONS
+              
+              Only shown when search is empty.
+          ================================================== */}
+
+          {!isSearching && (
+            <>
+              {/* LOADING */}
+
+              {isConversationsLoading && (
+                <div className="space-y-2">
+                  {[
+                    1,
+                    2,
+                    3,
+                    4,
+                    5,
+                    6,
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="
+                        flex
+                        animate-pulse
+                        items-center
+                        gap-3
+                        rounded-xl
+                        p-3
+                      "
+                    >
+                      <div
+                        className="
+                          h-12 w-12
+                          rounded-full
+                          bg-slate-200
+                        "
+                      />
+
+                      <div
+                        className="
+                          flex-1
+                          space-y-2
+                        "
+                      >
+                        <div
+                          className="
+                            h-3 w-28
+                            rounded
+                            bg-slate-200
+                          "
+                        />
+
+                        <div
+                          className="
+                            h-3 w-40
+                            rounded
+                            bg-slate-100
+                          "
+                        />
                       </div>
                     </div>
-                  </button>
-                );
-              },
-            )}
-          </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ERROR */}
+
+              {isConversationsError && (
+                <div
+                  className="
+                    rounded-xl
+                    border
+                    border-red-100
+                    bg-red-50
+                    p-4
+                    text-center
+                  "
+                >
+                  <p
+                    className="
+                      text-sm
+                      font-medium
+                      text-red-600
+                    "
+                  >
+                    Failed to load
+                    conversations
+                  </p>
+
+                  <p
+                    className="
+                      mt-1
+                      text-xs
+                      text-red-400
+                    "
+                  >
+                    Please try again.
+                  </p>
+                </div>
+              )}
+
+              {/* EMPTY */}
+
+              {!isConversationsLoading &&
+                !isConversationsError &&
+                conversationList.length ===
+                  0 && (
+                  <div
+                    className="
+                      flex h-64
+                      flex-col
+                      items-center
+                      justify-center
+                      text-center
+                    "
+                  >
+                    <div
+                      className="
+                        mb-3
+                        flex h-14 w-14
+                        items-center
+                        justify-center
+                        rounded-2xl
+                        bg-slate-100
+                      "
+                    >
+                      <MessageCircle
+                        size={25}
+                        className="text-slate-400"
+                      />
+                    </div>
+
+                    <p
+                      className="
+                        text-sm
+                        font-semibold
+                        text-slate-700
+                      "
+                    >
+                      No conversations
+                    </p>
+
+                    <p
+                      className="
+                        mt-1
+                        max-w-[220px]
+                        text-xs
+                        text-slate-400
+                      "
+                    >
+                      Search for a user
+                      above to start a
+                      conversation.
+                    </p>
+                  </div>
+                )}
+
+              {/* CONVERSATION LIST */}
+
+              <div className="space-y-1">
+                {conversationList.map(
+                  (conversation) => {
+                    const name =
+                      getConversationName(
+                        conversation,
+                        user?._id,
+                      );
+
+                    const avatar =
+                      getConversationAvatar(
+                        conversation,
+                        user?._id,
+                      );
+
+                    const otherUser =
+                      getOtherParticipant(
+                        conversation,
+                        user?._id,
+                      );
+
+                    const isGroup =
+                      conversation.type ===
+                      "group";
+
+                    const isActive =
+                      conversation._id ===
+                      selectedConversationId;
+
+                    const lastMessagePreview =
+                      getLastMessagePreview(
+                        conversation,
+                      );
+
+                    const unreadCount =
+                      conversation.unreadCount ||
+                      0;
+
+                    return (
+                      <button
+                        key={
+                          conversation._id
+                        }
+                        type="button"
+                        onClick={() =>
+                          handleSelectConversation(
+                            conversation._id,
+                          )
+                        }
+                        className={`
+                          group
+                          flex w-full
+                          items-center
+                          gap-3
+                          rounded-xl
+                          p-3
+                          text-left
+                          transition
+
+                          ${
+                            isActive
+                              ? "bg-slate-100"
+                              : "hover:bg-slate-50"
+                          }
+                        `}
+                      >
+                        {/* AVATAR */}
+
+                        <div
+                          className="
+                            relative
+                            shrink-0
+                          "
+                        >
+                          {avatar ? (
+                            <img
+                              src={avatar}
+                              alt={name}
+                              className="
+                                h-12 w-12
+                                rounded-full
+                                object-cover
+                              "
+                            />
+                          ) : isGroup ? (
+                            <div
+                              className="
+                                flex
+                                h-12 w-12
+                                items-center
+                                justify-center
+                                rounded-full
+                                bg-slate-900
+                                text-white
+                              "
+                            >
+                              <Users
+                                size={20}
+                              />
+                            </div>
+                          ) : (
+                            <div
+                              className="
+                                flex
+                                h-12 w-12
+                                items-center
+                                justify-center
+                                rounded-full
+                                bg-slate-900
+                                text-sm
+                                font-bold
+                                text-white
+                              "
+                            >
+                              {name
+                                .charAt(0)
+                                .toUpperCase()}
+                            </div>
+                          )}
+
+                          {/* ONLINE */}
+
+                          {!isGroup &&
+                            otherUser?.isOnline && (
+                              <span
+                                className="
+                                  absolute
+                                  bottom-0
+                                  right-0
+                                  h-3 w-3
+                                  rounded-full
+                                  border-2
+                                  border-white
+                                  bg-emerald-500
+                                "
+                              />
+                            )}
+                        </div>
+
+                        {/* INFO */}
+
+                        <div
+                          className="
+                            min-w-0
+                            flex-1
+                          "
+                        >
+                          <div
+                            className="
+                              flex
+                              items-center
+                              justify-between
+                              gap-2
+                            "
+                          >
+                            <p
+                              className={`
+                                truncate
+                                text-sm
+
+                                ${
+                                  unreadCount >
+                                  0
+                                    ? "font-bold text-slate-900"
+                                    : "font-semibold text-slate-700"
+                                }
+                              `}
+                            >
+                              {name}
+                            </p>
+
+                            <span
+                              className="
+                                shrink-0
+                                text-[10px]
+                                text-slate-400
+                              "
+                            >
+                              {formatTime(
+                                conversation
+                                  .lastMessage
+                                  ?.createdAt,
+                              )}
+                            </span>
+                          </div>
+
+                          <div
+                            className="
+                              mt-1
+                              flex
+                              items-center
+                              justify-between
+                              gap-2
+                            "
+                          >
+                            <p
+                              className={`
+                                truncate
+                                text-xs
+
+                                ${
+                                  unreadCount >
+                                  0
+                                    ? "font-medium text-slate-600"
+                                    : "text-slate-400"
+                                }
+                              `}
+                            >
+                              {
+                                lastMessagePreview
+                              }
+                            </p>
+
+                            {/* UNREAD */}
+
+                            {unreadCount >
+                              0 && (
+                              <span
+                                className="
+                                  flex
+                                  h-5
+                                  min-w-5
+                                  shrink-0
+                                  items-center
+                                  justify-center
+                                  rounded-full
+                                  bg-slate-900
+                                  px-1.5
+                                  text-[10px]
+                                  font-bold
+                                  text-white
+                                "
+                              >
+                                {unreadCount >
+                                99
+                                  ? "99+"
+                                  : unreadCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* ==================================================
@@ -1022,7 +1370,7 @@ export default function ChatSidebar({
               hover:bg-slate-100
             "
           >
-            {/* Profile Click Area */}
+            {/* PROFILE */}
 
             <button
               type="button"
@@ -1038,7 +1386,7 @@ export default function ChatSidebar({
                 outline-none
               "
             >
-              {/* Avatar */}
+              {/* AVATAR */}
 
               <div className="shrink-0">
                 {user?.avatar ? (
@@ -1074,7 +1422,7 @@ export default function ChatSidebar({
                 )}
               </div>
 
-              {/* User Info */}
+              {/* USER INFO */}
 
               <div
                 className="
@@ -1121,7 +1469,7 @@ export default function ChatSidebar({
               </div>
             </button>
 
-            {/* More Options */}
+            {/* MORE */}
 
             <button
               type="button"
