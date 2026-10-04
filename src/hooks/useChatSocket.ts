@@ -101,6 +101,8 @@ interface ReactionSummary {
 }
 
 interface MessageReactionUpdate {
+  eventId?: string;
+
   messageId: string;
 
   conversationId: string;
@@ -108,6 +110,10 @@ interface MessageReactionUpdate {
   action:
     | "added"
     | "removed";
+
+  reactorId?: string;
+
+  targetUserId?: string;
 
   reactionSummary:
     ReactionSummary[];
@@ -410,6 +416,11 @@ export default function useChatSocket({
       null,
     );
 
+  const notificationAudioRef =
+    useRef<HTMLAudioElement | null>(
+      null,
+    );
+
   // ====================================================
   // INITIALIZE AUDIO
   // ====================================================
@@ -422,31 +433,51 @@ export default function useChatSocket({
       return;
     }
 
-    const audio =
+    // Current/open chat sound
+    const incomingAudio =
+      new Audio(
+        "/incoming.mp3",
+      );
+
+    incomingAudio.preload =
+      "auto";
+
+    incomingAudio.volume = 0.55;
+
+    // Background/new-chat notification sound
+    const notificationAudio =
       new Audio(
         "/notification.mp3",
       );
 
-    audio.preload =
+    notificationAudio.preload =
       "auto";
 
-    audio.volume = 0.55;
+    notificationAudio.volume = 0.55;
 
     incomingAudioRef.current =
-      audio;
+      incomingAudio;
+
+    notificationAudioRef.current =
+      notificationAudio;
 
     return () => {
-      audio.pause();
+      incomingAudio.pause();
+      incomingAudio.currentTime = 0;
 
-      audio.currentTime = 0;
+      notificationAudio.pause();
+      notificationAudio.currentTime = 0;
 
       incomingAudioRef.current =
+        null;
+
+      notificationAudioRef.current =
         null;
     };
   }, []);
 
   // ====================================================
-  // PLAY AUDIO
+  // PLAY CURRENT CHAT SOUND
   // ====================================================
 
   const playIncomingMessageSound =
@@ -467,7 +498,6 @@ export default function useChatSocket({
 
       try {
         audio.pause();
-
         audio.currentTime = 0;
 
         const promise =
@@ -477,7 +507,7 @@ export default function useChatSocket({
           promise.catch(
             (error) => {
               console.warn(
-                "Unable to play incoming message sound:",
+                "Unable to play incoming chat sound:",
                 error,
               );
             },
@@ -485,7 +515,52 @@ export default function useChatSocket({
         }
       } catch (error) {
         console.error(
-          "Incoming message sound error:",
+          "Incoming chat sound error:",
+          error,
+        );
+      }
+    }, []);
+
+  // ====================================================
+  // PLAY BACKGROUND NOTIFICATION SOUND
+  // ====================================================
+
+  const playNotificationSound =
+    useCallback(() => {
+      if (
+        typeof window ===
+        "undefined"
+      ) {
+        return;
+      }
+
+      const audio =
+        notificationAudioRef.current;
+
+      if (!audio) {
+        return;
+      }
+
+      try {
+        audio.pause();
+        audio.currentTime = 0;
+
+        const promise =
+          audio.play();
+
+        if (promise) {
+          promise.catch(
+            (error) => {
+              console.warn(
+                "Unable to play notification sound:",
+                error,
+              );
+            },
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Notification sound error:",
           error,
         );
       }
@@ -496,6 +571,13 @@ export default function useChatSocket({
   // ====================================================
 
   const pendingReadMessageIds =
+    useRef<Set<string>>(
+      new Set(),
+    );
+
+  // Prevent duplicate reaction events when the same update
+  // arrives through both the conversation room and personal room.
+  const processedReactionEventsRef =
     useRef<Set<string>>(
       new Set(),
     );
@@ -1375,22 +1457,20 @@ export default function useChatSocket({
         // ==================================================
         // NORMAL MESSAGE SOUND
         // ==================================================
-        //
-        // Play notification.mp3 for every incoming normal
-        // message. This also works when the conversation is
-        // brand-new and the user has not opened/joined that
-        // conversation yet.
-        //
-        // Do NOT play for:
-        // - system messages
-        // - our own messages
+        // Current/open chat  -> incoming.mp3
+        // Other/background   -> notification.mp3
+        // System/own message -> no sound
         // ==================================================
 
         if (
           !isSystemMessage &&
           !isOwnMessage
         ) {
-          playIncomingMessageSound();
+          if (isCurrentConversation) {
+            playIncomingMessageSound();
+          } else {
+            playNotificationSound();
+          }
         }
 
         // ----------------------------------------------
@@ -1918,9 +1998,13 @@ export default function useChatSocket({
         reactionUpdate: MessageReactionUpdate,
       ) => {
         const {
+          eventId,
           messageId,
           conversationId:
             reactionConversationId,
+          action,
+          reactorId,
+          targetUserId,
           reactionSummary,
         } =
           reactionUpdate;
@@ -1932,17 +2016,122 @@ export default function useChatSocket({
           return;
         }
 
+        // ----------------------------------------------
+        // Prevent duplicate delivery.
+        // ----------------------------------------------
+        if (eventId) {
+          if (
+            processedReactionEventsRef.current.has(
+              eventId,
+            )
+          ) {
+            return;
+          }
+
+          processedReactionEventsRef.current.add(
+            eventId,
+          );
+
+          // Keep this set bounded.
+          if (
+            processedReactionEventsRef.current.size >
+            1000
+          ) {
+            const first =
+              processedReactionEventsRef.current
+                .values()
+                .next().value;
+
+            if (first) {
+              processedReactionEventsRef.current.delete(
+                first,
+              );
+            }
+          }
+        }
+
+        const normalizedConversationId =
+          String(reactionConversationId);
+
+        const selectedConversationId =
+          conversationIdRef.current
+            ? String(
+                conversationIdRef.current,
+              )
+            : null;
+
+        const normalizedCurrentUserId =
+          currentUserIdRef.current
+            ? String(
+                currentUserIdRef.current,
+              )
+            : null;
+
+        const normalizedReactorId =
+          reactorId
+            ? String(reactorId)
+            : null;
+
+        const isOwnReaction =
+          normalizedReactorId !== null &&
+          normalizedCurrentUserId !== null &&
+          normalizedReactorId ===
+            normalizedCurrentUserId;
+
+        const isCurrentConversation =
+          normalizedConversationId ===
+          selectedConversationId;
+
+        // ----------------------------------------------
+        // Reaction sound
+        // ----------------------------------------------
+        // Same/open chat -> incoming.mp3
+        // Other chat       -> notification.mp3
+        // Own reaction     -> no sound
+        // ----------------------------------------------
+        if (!isOwnReaction) {
+          if (isCurrentConversation) {
+            playIncomingMessageSound();
+          } else {
+            playNotificationSound();
+          }
+        }
+
+        // ----------------------------------------------
+        // Browser notification for background reaction
+        // ----------------------------------------------
+        if (
+          !isOwnReaction &&
+          !isCurrentConversation &&
+          typeof window !==
+            "undefined"
+        ) {
+          emitChatNotification({
+            title: "Message reaction",
+            body: action === "removed"
+              ? "Someone removed a reaction"
+              : "Someone reacted to your message",
+            conversationId:
+              normalizedConversationId,
+            messageId: String(messageId),
+            senderId:
+              normalizedReactorId,
+            senderAvatar: null,
+          });
+        }
+
+        // ----------------------------------------------
+        // Update existing cached messages immediately.
+        // ----------------------------------------------
+        let messageWasCached = false;
+
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
             {
               conversationId:
-                String(
-                  reactionConversationId,
-                ),
-
+                normalizedConversationId,
               page: 1,
-
               limit: 30,
             },
             (draft) => {
@@ -1961,11 +2150,35 @@ export default function useChatSocket({
                 return;
               }
 
+              messageWasCached = true;
               message.reactions =
                 reactionSummary;
             },
           ),
         );
+
+        // ----------------------------------------------
+        // IMPORTANT: if this conversation/message is not
+        // currently cached, force a fresh GET. This fixes
+        // the case where A is in another chat and later
+        // opens this chat without a page reload.
+        // ----------------------------------------------
+        if (!messageWasCached) {
+          void dispatch(
+            messageApi.endpoints.getMessages.initiate(
+              {
+                conversationId:
+                  normalizedConversationId,
+                page: 1,
+                limit: 30,
+              },
+              {
+                forceRefetch: true,
+                subscribe: false,
+              },
+            ),
+          );
+        }
       },
     );
 
@@ -2128,6 +2341,7 @@ export default function useChatSocket({
     markConversationAsRead,
     markMessageAsRead,
     playIncomingMessageSound,
+    playNotificationSound,
   ]);
 
   // ====================================================
