@@ -12,6 +12,10 @@ import {
   X,
 } from "lucide-react";
 
+import EmojiPicker, {
+  type EmojiClickData,
+} from "emoji-picker-react";
+
 import {
   useEffect,
   useRef,
@@ -115,11 +119,26 @@ export default function MessageComposer({
   );
 
   // =========================
+  // EMOJI PICKER
+  // =========================
+
+  const [
+    showEmojiPicker,
+    setShowEmojiPicker,
+  ] = useState(false);
+
+  // =========================
   // REFS
   // =========================
 
   const fileInputRef =
     useRef<HTMLInputElement>(null);
+
+  const textareaRef =
+    useRef<HTMLTextAreaElement>(null);
+
+  const emojiPickerRef =
+    useRef<HTMLDivElement>(null);
 
   const mediaRecorderRef =
     useRef<MediaRecorder | null>(
@@ -246,6 +265,55 @@ export default function MessageComposer({
   }, [audioUrl]);
 
   // =========================
+  // OUTSIDE CLICK
+  // EMOJI PICKER CLOSE
+  // =========================
+
+  useEffect(() => {
+    if (!showEmojiPicker) {
+      return;
+    }
+
+    const handleOutsideClick = (
+      event: MouseEvent | TouchEvent,
+    ) => {
+      const target =
+        event.target as Node;
+
+      if (
+        emojiPickerRef.current &&
+        !emojiPickerRef.current.contains(
+          target,
+        )
+      ) {
+        setShowEmojiPicker(false);
+      }
+    };
+
+    document.addEventListener(
+      "mousedown",
+      handleOutsideClick,
+    );
+
+    document.addEventListener(
+      "touchstart",
+      handleOutsideClick,
+    );
+
+    return () => {
+      document.removeEventListener(
+        "mousedown",
+        handleOutsideClick,
+      );
+
+      document.removeEventListener(
+        "touchstart",
+        handleOutsideClick,
+      );
+    };
+  }, [showEmojiPicker]);
+
+  // =========================
   // BLOCKED USER CLEANUP
   // =========================
 
@@ -288,6 +356,8 @@ export default function MessageComposer({
 
     setAudioBlob(null);
 
+    setShowEmojiPicker(false);
+
     if (audioUrl) {
       URL.revokeObjectURL(
         audioUrl,
@@ -307,6 +377,61 @@ export default function MessageComposer({
     onTypingStop,
     onCancelReply,
   ]);
+
+  // =========================
+  // EMOJI CLICK
+  // =========================
+
+  const handleEmojiClick = (
+    emojiData: EmojiClickData,
+  ) => {
+    if (composerDisabled) {
+      return;
+    }
+
+    const emoji =
+      emojiData.emoji;
+
+    setMessage(
+      (previousMessage) =>
+        `${previousMessage}${emoji}`,
+    );
+
+    // Keep textarea focused
+    requestAnimationFrame(() => {
+      const textarea =
+        textareaRef.current;
+
+      if (!textarea) {
+        return;
+      }
+
+      textarea.focus();
+
+      const length =
+        textarea.value.length;
+
+      textarea.setSelectionRange(
+        length,
+        length,
+      );
+    });
+  };
+
+  // =========================
+  // TOGGLE EMOJI PICKER
+  // =========================
+
+  const handleEmojiToggle =
+    () => {
+      if (composerDisabled) {
+        return;
+      }
+
+      setShowEmojiPicker(
+        (previous) => !previous,
+      );
+    };
 
   // =========================
   // SEND MESSAGE
@@ -349,10 +474,16 @@ export default function MessageComposer({
 
     setSelectedFiles([]);
 
+    setShowEmojiPicker(false);
+
     if (fileInputRef.current) {
       fileInputRef.current.value =
         "";
     }
+
+    requestAnimationFrame(() => {
+      textareaRef.current?.focus();
+    });
   };
 
   // =========================
@@ -599,6 +730,9 @@ export default function MessageComposer({
         return;
       }
 
+      // Close emoji picker
+      setShowEmojiPicker(false);
+
       try {
         const stream =
           await navigator.mediaDevices.getUserMedia(
@@ -840,9 +974,10 @@ export default function MessageComposer({
   // ============================================================
 
   const composerOuterClass = `
+    relative
     w-full
     shrink-0
-    overflow-hidden
+    overflow-visible
     border-t
     border-slate-200
     bg-white
@@ -1383,16 +1518,19 @@ export default function MessageComposer({
             }
           />
 
-          {/* MESSAGE INPUT */}
+          {/* =========================
+              MESSAGE INPUT
+          ========================= */}
 
           <div
             className="
+              relative
               flex
               min-h-9
               min-w-0
               flex-1
               items-end
-              overflow-hidden
+              overflow:visible
               rounded-2xl
               border
               border-slate-200
@@ -1408,6 +1546,7 @@ export default function MessageComposer({
             "
           >
             <textarea
+              ref={textareaRef}
               value={message}
               onChange={
                 handleMessageChange
@@ -1440,14 +1579,19 @@ export default function MessageComposer({
               "
             />
 
-            {/* EMOJI */}
+            {/* =========================
+                EMOJI BUTTON
+            ========================= */}
 
             <button
               type="button"
               disabled={
                 composerDisabled
               }
-              className="
+              onClick={
+                handleEmojiToggle
+              }
+              className={`
                 ml-0.5
                 flex
                 h-7
@@ -1456,22 +1600,74 @@ export default function MessageComposer({
                 items-center
                 justify-center
                 rounded-full
-                text-slate-400
                 transition
-                hover:bg-slate-100
-                hover:text-slate-600
                 disabled:opacity-50
                 sm:ml-1
-              "
+                ${
+                  showEmojiPicker
+                    ? "bg-slate-200 text-slate-700"
+                    : "text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                }
+              `}
               title="Emoji"
+              aria-label="Open emoji picker"
+              aria-expanded={
+                showEmojiPicker
+              }
             >
               <Smile
                 size={18}
               />
             </button>
+
+            {/* =========================
+                EMOJI PICKER
+            ========================= */}
+
+            {showEmojiPicker && (
+              <div
+                ref={
+                  emojiPickerRef
+                }
+                className="
+                  absolute
+                  bottom-full
+                  right-0
+                  z-[100]
+                  mb-2
+                  w-[min(320px,calc(100vw-16px))]
+                  max-w-[calc(100vw-16px)]
+                  overflow-hidden
+                  rounded-2xl
+                  border
+                  border-slate-200
+                  bg-white
+                  shadow-2xl
+                "
+              >
+                <EmojiPicker
+                  onEmojiClick={
+                    handleEmojiClick
+                  }
+                  width="100%"
+                  height={350}
+                  previewConfig={{
+                    showPreview: false,
+                  }}
+                  searchDisabled={
+                    false
+                  }
+                  skinTonesDisabled={
+                    false
+                  }
+                />
+              </div>
+            )}
           </div>
 
-          {/* VOICE */}
+          {/* =========================
+              VOICE
+          ========================= */}
 
           <button
             type="button"
@@ -1506,7 +1702,9 @@ export default function MessageComposer({
             <Mic size={19} />
           </button>
 
-          {/* SEND */}
+          {/* =========================
+              SEND
+          ========================= */}
 
           <button
             type="button"
