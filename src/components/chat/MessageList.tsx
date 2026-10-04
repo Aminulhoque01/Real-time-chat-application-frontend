@@ -77,9 +77,7 @@ export default function MessageList({
   // =================================
 
   const bottomRef =
-    useRef<HTMLDivElement | null>(
-      null,
-    );
+    useRef<HTMLDivElement | null>(null);
 
   // =================================
   // CURRENT USER
@@ -129,6 +127,7 @@ export default function MessageList({
 
     bottomRef.current.scrollIntoView({
       behavior: "smooth",
+      block: "end",
     });
   }, [
     messages.length,
@@ -151,19 +150,17 @@ export default function MessageList({
     messages.forEach(
       (message) => {
         // -----------------------------
-        // System messages do not need
-        // read / delivered handling
+        // System messages
         // -----------------------------
 
         if (
-          message.type ===
-          "system"
+          message.type === "system"
         ) {
           return;
         }
 
         // -----------------------------
-        // Ignore deleted messages
+        // Deleted messages
         // -----------------------------
 
         if (message.isDeleted) {
@@ -171,7 +168,7 @@ export default function MessageList({
         }
 
         // -----------------------------
-        // Get sender ID
+        // Sender ID
         // -----------------------------
 
         const senderId =
@@ -181,7 +178,7 @@ export default function MessageList({
             : message.senderId?._id;
 
         // -----------------------------
-        // Don't mark own messages
+        // Ignore own messages
         // -----------------------------
 
         if (
@@ -199,7 +196,7 @@ export default function MessageList({
           message.readBy ?? [];
 
         // -----------------------------
-        // Already read?
+        // Already read
         // -----------------------------
 
         const alreadyRead =
@@ -234,8 +231,19 @@ export default function MessageList({
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div
+        className="
+          flex
+          h-full
+          min-h-0
+          min-w-0
+          items-center
+          justify-center
+          overflow-hidden
+          px-4
+        "
+      >
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
           Loading messages...
         </p>
       </div>
@@ -248,8 +256,19 @@ export default function MessageList({
 
   if (isError) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-red-500">
+      <div
+        className="
+          flex
+          h-full
+          min-h-0
+          min-w-0
+          items-center
+          justify-center
+          overflow-hidden
+          px-4
+        "
+      >
+        <p className="text-center text-sm text-red-500">
           Failed to load messages.
         </p>
       </div>
@@ -264,8 +283,19 @@ export default function MessageList({
     messages.length === 0
   ) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
+      <div
+        className="
+          flex
+          h-full
+          min-h-0
+          min-w-0
+          items-center
+          justify-center
+          overflow-hidden
+          px-4
+        "
+      >
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400">
           No messages yet.
         </p>
       </div>
@@ -277,94 +307,121 @@ export default function MessageList({
   // =================================
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto px-3 py-4">
-      <div className="flex flex-col gap-2">
-        {messages.map(
-          (message) => {
-            // -----------------------------
-            // Get sender ID
-            // -----------------------------
-
-            const senderId =
-              typeof message.senderId ===
-              "string"
-                ? message.senderId
-                : message.senderId?._id;
-
-            // -----------------------------
-            // Check own message
-            // -----------------------------
-
-            const isMine =
-              String(senderId) ===
-              String(
-                currentUser?._id ??
-                  currentUserId,
-              );
-
-            return (
-              <MessageBubble
-                key={String(message._id)}
-                message={message}
-                isMine={isMine}
-
-                // -----------------------------
-                // Reply
-                // -----------------------------
-
-                onReply={
-                  onReply
-                }
-
-                // -----------------------------
-                // Edit
-                // -----------------------------
-
-                onEdit={
-                  onEdit
-                }
-
-                // -----------------------------
-                // Delete
-                // -----------------------------
-
-                onDelete={
-                  onDelete
-                }
-
-                // -----------------------------
-                // Reaction
-                // -----------------------------
-
-                onReaction={
-                  onReaction
-                }
-              />
-            );
-          },
-        )}
-
-        {/* =================================
-            BOTTOM SCROLL TARGET
-        ================================= */}
-
-        <div
-          ref={bottomRef}
-        />
-      </div>
-
+    <div
+      className="
+        flex
+        h-full
+        min-h-0
+        min-w-0
+        flex-col
+        overflow-hidden
+      "
+    >
       {/* =================================
-          BACKGROUND FETCHING
+          SCROLL CONTAINER
       ================================= */}
 
-      {isFetching &&
-        !isLoading && (
-          <div className="py-1 text-center">
-            <span className="text-xs text-gray-400">
-              Updating...
-            </span>
-          </div>
-        )}
+      <div
+        className="
+          min-h-0
+          min-w-0
+          flex-1
+          overflow-x-hidden
+          overflow-y-auto
+          overscroll-contain
+          px-2
+          py-2
+          sm:px-3
+          sm:py-4
+        "
+        style={{
+          WebkitOverflowScrolling:
+            "touch",
+        }}
+      >
+        <div
+          className="
+            mx-auto
+            flex
+            w-full
+            max-w-4xl
+            min-w-0
+            flex-col
+            gap-1.5
+            sm:gap-2
+          "
+        >
+          {messages.map(
+            (message) => {
+              // -----------------------------
+              // Sender ID
+              // -----------------------------
+
+              const senderId =
+                typeof message.senderId ===
+                "string"
+                  ? message.senderId
+                  : message.senderId?._id;
+
+              // -----------------------------
+              // Check own message
+              // -----------------------------
+
+              const isMine =
+                String(senderId) ===
+                String(
+                  currentUser?._id ??
+                    currentUserId,
+                );
+
+              return (
+                <div
+                  key={String(
+                    message._id,
+                  )}
+                  className="
+                    min-w-0
+                    max-w-full
+                  "
+                >
+                  <MessageBubble
+                    message={message}
+                    isMine={isMine}
+                    onReply={onReply}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onReaction={
+                      onReaction
+                    }
+                  />
+                </div>
+              );
+            },
+          )}
+
+          {/* =================================
+              BOTTOM SCROLL TARGET
+          ================================= */}
+
+          <div
+            ref={bottomRef}
+            className="h-px w-full shrink-0"
+          />
+        </div>
+
+        {/* =================================
+            BACKGROUND FETCHING
+        ================================= */}
+
+        {isFetching &&
+          !isLoading && (
+            <div className="py-1 text-center">
+              <span className="text-[11px] text-gray-400 sm:text-xs">
+                Updating...
+              </span>
+            </div>
+          )}
+      </div>
     </div>
   );
 }

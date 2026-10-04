@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { Message } from "@/src/redux/features/message/message.types";
@@ -18,10 +17,6 @@ import {
   useRef,
   useState,
 } from "react";
-
-import EmojiPicker, {
-  type EmojiClickData,
-} from "emoji-picker-react";
 
 // =========================
 // MESSAGE SEND PAYLOAD
@@ -48,10 +43,8 @@ interface MessageComposerProps {
 
   disabled?: boolean;
 
-  // Blocked user
   isBlocked?: boolean;
 
-  // Reply
   replyingTo?: Message | null;
 
   onCancelReply?: () => void;
@@ -94,15 +87,6 @@ export default function MessageComposer({
   ] = useState<File[]>([]);
 
   // =========================
-  // EMOJI PICKER
-  // =========================
-
-  const [
-    isEmojiPickerOpen,
-    setIsEmojiPickerOpen,
-  ] = useState(false);
-
-  // =========================
   // VOICE RECORDING
   // =========================
 
@@ -119,12 +103,16 @@ export default function MessageComposer({
   const [
     audioUrl,
     setAudioUrl,
-  ] = useState<string | null>(null);
+  ] = useState<string | null>(
+    null,
+  );
 
   const [
     audioBlob,
     setAudioBlob,
-  ] = useState<Blob | null>(null);
+  ] = useState<Blob | null>(
+    null,
+  );
 
   // =========================
   // REFS
@@ -133,17 +121,15 @@ export default function MessageComposer({
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
-  const textareaRef =
-    useRef<HTMLTextAreaElement>(null);
-
-  const emojiPickerRef =
-    useRef<HTMLDivElement>(null);
-
   const mediaRecorderRef =
-    useRef<MediaRecorder | null>(null);
+    useRef<MediaRecorder | null>(
+      null,
+    );
 
   const mediaStreamRef =
-    useRef<MediaStream | null>(null);
+    useRef<MediaStream | null>(
+      null,
+    );
 
   const audioChunksRef =
     useRef<Blob[]>([]);
@@ -175,7 +161,7 @@ export default function MessageComposer({
       : replyingTo?.text?.trim()
         ? replyingTo.text
         : replyingTo?.attachments
-          ?.length
+              ?.length
           ? "Attachment"
           : replyingTo
             ? "Message"
@@ -185,54 +171,59 @@ export default function MessageComposer({
   // CLEAR TYPING TIMER
   // =========================
 
-  const clearTypingTimer = () => {
-    if (
-      typingTimeoutRef.current
-    ) {
-      clearTimeout(
-        typingTimeoutRef.current,
-      );
+  const clearTypingTimer =
+    () => {
+      if (
+        typingTimeoutRef.current
+      ) {
+        clearTimeout(
+          typingTimeoutRef.current,
+        );
 
-      typingTimeoutRef.current =
-        null;
-    }
-  };
+        typingTimeoutRef.current =
+          null;
+      }
+    };
 
   // =========================
   // CLEAR RECORDING TIMER
   // =========================
 
-  const clearRecordingTimer = () => {
-    if (
-      recordingTimerRef.current
-    ) {
-      clearInterval(
-        recordingTimerRef.current,
-      );
+  const clearRecordingTimer =
+    () => {
+      if (
+        recordingTimerRef.current
+      ) {
+        clearInterval(
+          recordingTimerRef.current,
+        );
 
-      recordingTimerRef.current =
-        null;
-    }
-  };
+        recordingTimerRef.current =
+          null;
+      }
+    };
 
   // =========================
   // STOP MEDIA STREAM
   // =========================
 
-  const stopMediaStream = () => {
-    if (
-      mediaStreamRef.current
-    ) {
-      mediaStreamRef.current
-        .getTracks()
-        .forEach((track) => {
-          track.stop();
-        });
+  const stopMediaStream =
+    () => {
+      if (
+        mediaStreamRef.current
+      ) {
+        mediaStreamRef.current
+          .getTracks()
+          .forEach(
+            (track) => {
+              track.stop();
+            },
+          );
 
-      mediaStreamRef.current =
-        null;
-    }
-  };
+        mediaStreamRef.current =
+          null;
+      }
+    };
 
   // =========================
   // CLEANUP
@@ -255,40 +246,6 @@ export default function MessageComposer({
   }, [audioUrl]);
 
   // =========================
-  // CLOSE EMOJI PICKER
-  // OUTSIDE CLICK
-  // =========================
-
-  useEffect(() => {
-    const handleOutsideClick = (
-      event: MouseEvent,
-    ) => {
-      if (
-        emojiPickerRef.current &&
-        !emojiPickerRef.current.contains(
-          event.target as Node,
-        )
-      ) {
-        setIsEmojiPickerOpen(false);
-      }
-    };
-
-    if (isEmojiPickerOpen) {
-      document.addEventListener(
-        "mousedown",
-        handleOutsideClick,
-      );
-    }
-
-    return () => {
-      document.removeEventListener(
-        "mousedown",
-        handleOutsideClick,
-      );
-    };
-  }, [isEmojiPickerOpen]);
-
-  // =========================
   // BLOCKED USER CLEANUP
   // =========================
 
@@ -297,15 +254,10 @@ export default function MessageComposer({
       return;
     }
 
-    // Stop typing
     onTypingStop?.();
 
     clearTypingTimer();
 
-    // Close emoji picker
-    setIsEmojiPickerOpen(false);
-
-    // Stop recording
     const recorder =
       mediaRecorderRef.current;
 
@@ -323,15 +275,13 @@ export default function MessageComposer({
     mediaRecorderRef.current =
       null;
 
-    audioChunksRef.current = [];
+    audioChunksRef.current =
+      [];
 
-    // Clear message
     setMessage("");
 
-    // Clear attachments
     setSelectedFiles([]);
 
-    // Clear recording
     setIsRecording(false);
 
     setRecordingTime(0);
@@ -346,91 +296,17 @@ export default function MessageComposer({
       setAudioUrl(null);
     }
 
-    // Clear file input
     if (fileInputRef.current) {
       fileInputRef.current.value =
         "";
     }
 
-    // Cancel reply
     onCancelReply?.();
   }, [
     isBlocked,
     onTypingStop,
     onCancelReply,
   ]);
-
-  // =========================
-  // EMOJI SELECT
-  // =========================
-
-  const handleEmojiClick = (
-    emojiData: EmojiClickData,
-  ) => {
-    if (composerDisabled) {
-      return;
-    }
-
-    const emoji =
-      emojiData.emoji;
-
-    const textarea =
-      textareaRef.current;
-
-    if (!textarea) {
-      setMessage(
-        (previous) =>
-          previous + emoji,
-      );
-
-      return;
-    }
-
-    const start =
-      textarea.selectionStart;
-
-    const end =
-      textarea.selectionEnd;
-
-    const currentValue =
-      message;
-
-    const newValue =
-      currentValue.slice(
-        0,
-        start,
-      ) +
-      emoji +
-      currentValue.slice(end);
-
-    setMessage(newValue);
-
-    // Keep focus on textarea
-    requestAnimationFrame(() => {
-      textarea.focus();
-
-      const newCursorPosition =
-        start + emoji.length;
-
-      textarea.setSelectionRange(
-        newCursorPosition,
-        newCursorPosition,
-      );
-    });
-
-    // Emoji itself counts as typing
-    onTypingStart?.();
-
-    clearTypingTimer();
-
-    typingTimeoutRef.current =
-      setTimeout(() => {
-        onTypingStop?.();
-
-        typingTimeoutRef.current =
-          null;
-      }, 1000);
-  };
 
   // =========================
   // SEND MESSAGE
@@ -444,7 +320,6 @@ export default function MessageComposer({
     const trimmedMessage =
       message.trim();
 
-    // Empty message
     if (
       !trimmedMessage &&
       selectedFiles.length === 0
@@ -452,15 +327,10 @@ export default function MessageComposer({
       return;
     }
 
-    // Stop typing
     onTypingStop?.();
 
     clearTypingTimer();
 
-    // Close emoji picker
-    setIsEmojiPickerOpen(false);
-
-    // Send
     onSend?.({
       text:
         trimmedMessage ||
@@ -475,7 +345,6 @@ export default function MessageComposer({
         replyingTo?._id,
     });
 
-    // Reset
     setMessage("");
 
     setSelectedFiles([]);
@@ -502,7 +371,6 @@ export default function MessageComposer({
 
     setMessage(value);
 
-    // Empty input
     if (!value.trim()) {
       onTypingStop?.();
 
@@ -511,10 +379,8 @@ export default function MessageComposer({
       return;
     }
 
-    // Start typing
     onTypingStart?.();
 
-    // Reset timeout
     clearTypingTimer();
 
     typingTimeoutRef.current =
@@ -593,12 +459,6 @@ export default function MessageComposer({
       ],
     );
 
-    console.log(
-      "SELECTED FILES:",
-      newFiles,
-    );
-
-    // Allow selecting same file
     event.target.value = "";
   };
 
@@ -720,15 +580,9 @@ export default function MessageComposer({
 
     return `${minutes
       .toString()
-      .padStart(
-        2,
-        "0",
-      )}:${remainingSeconds
+      .padStart(2, "0")}:${remainingSeconds
       .toString()
-      .padStart(
-        2,
-        "0",
-      )}`;
+      .padStart(2, "0")}`;
   };
 
   // =========================
@@ -753,13 +607,14 @@ export default function MessageComposer({
             },
           );
 
-        // Check blocked state again
         if (isBlocked) {
           stream
             .getTracks()
-            .forEach((track) => {
-              track.stop();
-            });
+            .forEach(
+              (track) => {
+                track.stop();
+              },
+            );
 
           return;
         }
@@ -952,15 +807,6 @@ export default function MessageComposer({
         },
       );
 
-    console.log(
-      "VOICE FILE:",
-      {
-        name: voiceFile.name,
-        type: voiceFile.type,
-        size: voiceFile.size,
-      },
-    );
-
     onSend?.({
       attachments: [
         voiceFile,
@@ -989,16 +835,51 @@ export default function MessageComposer({
       null;
   };
 
+  // ============================================================
+  // SHARED OUTER STYLES
+  // ============================================================
+
+  const composerOuterClass = `
+    w-full
+    shrink-0
+    overflow-hidden
+    border-t
+    border-slate-200
+    bg-white
+    px-2
+    pt-2
+    pb-[calc(0.5rem+env(safe-area-inset-bottom))]
+    sm:px-5
+    sm:py-3
+  `;
+
   // =========================
   // BLOCKED UI
   // =========================
 
   if (isBlocked) {
     return (
-      <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
-        <div className="mx-auto max-w-4xl">
-          <div className="flex min-h-10 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-            <p className="text-center text-sm text-slate-500">
+      <div
+        className={
+          composerOuterClass
+        }
+      >
+        <div className="mx-auto w-full max-w-4xl">
+          <div
+            className="
+              flex
+              min-h-10
+              items-center
+              justify-center
+              rounded-2xl
+              border
+              border-slate-200
+              bg-slate-50
+              px-3
+              py-2
+            "
+          >
+            <p className="text-center text-xs text-slate-500 sm:text-sm">
               You can't send
               messages because
               this user is
@@ -1016,32 +897,58 @@ export default function MessageComposer({
 
   if (isRecording) {
     return (
-      <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-3">
+      <div
+        className={
+          composerOuterClass
+        }
+      >
+        <div
+          className="
+            mx-auto
+            flex
+            w-full
+            max-w-4xl
+            items-center
+            gap-1.5
+            sm:gap-3
+          "
+        >
           <div
             className="
-              flex h-10 flex-1
-              items-center gap-3
+              flex
+              min-w-0
+              flex-1
+              items-center
+              gap-2
+              overflow-hidden
               rounded-2xl
-              border border-red-200
+              border
+              border-red-200
               bg-red-50
-              px-4
+              px-3
+              py-2
+              sm:gap-3
+              sm:px-4
             "
           >
             <span
               className="
-                h-3 w-3
+                h-2.5
+                w-2.5
+                shrink-0
                 animate-pulse
                 rounded-full
                 bg-red-500
+                sm:h-3
+                sm:w-3
               "
             />
 
-            <span className="text-sm font-medium text-red-600">
+            <span className="truncate text-xs font-medium text-red-600 sm:text-sm">
               Recording...
             </span>
 
-            <span className="font-mono text-sm text-slate-600">
+            <span className="shrink-0 font-mono text-xs text-slate-600 sm:text-sm">
               {formatTime(
                 recordingTime,
               )}
@@ -1054,7 +961,9 @@ export default function MessageComposer({
               handleCancelRecording
             }
             className="
-              flex h-10 w-10
+              flex
+              h-10
+              w-10
               shrink-0
               items-center
               justify-center
@@ -1075,7 +984,9 @@ export default function MessageComposer({
               handleStopRecording
             }
             className="
-              flex h-10 w-10
+              flex
+              h-10
+              w-10
               shrink-0
               items-center
               justify-center
@@ -1106,15 +1017,31 @@ export default function MessageComposer({
     audioBlob
   ) {
     return (
-      <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
-        <div className="mx-auto flex max-w-4xl items-center gap-2">
+      <div
+        className={
+          composerOuterClass
+        }
+      >
+        <div
+          className="
+            mx-auto
+            flex
+            w-full
+            max-w-4xl
+            items-center
+            gap-1.5
+            sm:gap-2
+          "
+        >
           <button
             type="button"
             onClick={
               handleCancelRecording
             }
             className="
-              flex h-10 w-10
+              flex
+              h-10
+              w-10
               shrink-0
               items-center
               justify-center
@@ -1126,23 +1053,30 @@ export default function MessageComposer({
             "
             title="Delete recording"
           >
-            <Trash2 size={19} />
+            <Trash2 size={18} />
           </button>
 
           <div
             className="
-              flex min-w-0 flex-1
+              flex
+              min-w-0
+              flex-1
               items-center
+              overflow-hidden
               rounded-2xl
-              border border-slate-200
+              border
+              border-slate-200
               bg-slate-50
-              px-3 py-2
+              px-2
+              py-1.5
+              sm:px-3
+              sm:py-2
             "
           >
             <audio
               src={audioUrl}
               controls
-              className="h-9 w-full"
+              className="h-9 w-full min-w-0"
             />
           </div>
 
@@ -1152,7 +1086,9 @@ export default function MessageComposer({
               handleSendVoice
             }
             className="
-              flex h-10 w-10
+              flex
+              h-10
+              w-10
               shrink-0
               items-center
               justify-center
@@ -1176,43 +1112,56 @@ export default function MessageComposer({
   // =========================
 
   return (
-    <div className="border-t border-slate-200 bg-white px-3 py-3 sm:px-5 sm:py-4">
-      <div className="mx-auto max-w-4xl">
-
-        {/* REPLY PREVIEW */}
+    <div
+      className={
+        composerOuterClass
+      }
+    >
+      <div className="mx-auto w-full max-w-4xl min-w-0">
+        {/* =========================
+            REPLY PREVIEW
+        ========================= */}
 
         {replyingTo && (
           <div
             className="
-              mb-3
+              mb-2
               flex
+              min-w-0
               items-start
-              gap-3
+              gap-2
+              overflow-hidden
               rounded-xl
               border
               border-slate-200
               bg-slate-50
-              px-3
+              px-2.5
               py-2
+              sm:mb-3
+              sm:gap-3
+              sm:px-3
             "
           >
             <div
               className="
                 mt-0.5
-                h-9
+                h-8
                 w-1
                 shrink-0
                 rounded-full
                 bg-slate-900
+                sm:h-9
               "
             />
 
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 overflow-hidden">
               <p
                 className="
-                  text-xs
+                  truncate
+                  text-[11px]
                   font-semibold
                   text-slate-700
+                  sm:text-xs
                 "
               >
                 Replying to{" "}
@@ -1223,16 +1172,15 @@ export default function MessageComposer({
                 className="
                   mt-0.5
                   truncate
-                  text-xs
+                  text-[11px]
                   text-slate-500
+                  sm:text-xs
                 "
                 title={
                   replyPreviewText
                 }
               >
-                {
-                  replyPreviewText
-                }
+                {replyPreviewText}
               </p>
             </div>
 
@@ -1256,28 +1204,37 @@ export default function MessageComposer({
               "
               title="Cancel reply"
             >
-              <X size={16} />
+              <X size={15} />
             </button>
           </div>
         )}
 
-        {/* ATTACHMENT PREVIEW */}
+        {/* =========================
+            ATTACHMENT PREVIEW
+        ========================= */}
 
         {selectedFiles.length >
           0 && (
           <div
             className="
-              mb-3
+              mb-2
               flex
-              max-h-32
+              max-h-24
+              min-w-0
               flex-wrap
-              gap-2
+              gap-1.5
+              overflow-x-hidden
               overflow-y-auto
-              rounded-2xl
+              rounded-xl
               border
               border-slate-200
               bg-slate-50
-              p-2
+              p-1.5
+              sm:mb-3
+              sm:max-h-32
+              sm:gap-2
+              sm:rounded-2xl
+              sm:p-2
             "
           >
             {selectedFiles.map(
@@ -1290,30 +1247,36 @@ export default function MessageComposer({
                   className="
                     flex
                     min-w-0
-                    max-w-[240px]
+                    max-w-[calc(100%-4px)]
                     items-center
-                    gap-2
-                    rounded-xl
+                    gap-1.5
+                    rounded-lg
                     border
                     border-slate-200
                     bg-white
-                    px-2
-                    py-2
+                    px-1.5
+                    py-1.5
+                    sm:max-w-[240px]
+                    sm:gap-2
+                    sm:rounded-xl
+                    sm:px-2
+                    sm:py-2
                   "
                 >
-                  <span className="shrink-0 text-lg">
+                  <span className="shrink-0 text-base sm:text-lg">
                     {getFileIcon(
                       file,
                     )}
                   </span>
 
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 overflow-hidden">
                     <p
                       className="
                         truncate
-                        text-xs
+                        text-[11px]
                         font-medium
                         text-slate-700
+                        sm:text-xs
                       "
                       title={
                         file.name
@@ -1322,7 +1285,7 @@ export default function MessageComposer({
                       {file.name}
                     </p>
 
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[9px] text-slate-400 sm:text-[10px]">
                       {formatFileSize(
                         file.size,
                       )}
@@ -1351,7 +1314,7 @@ export default function MessageComposer({
                     "
                     title="Remove file"
                   >
-                    <X size={14} />
+                    <X size={13} />
                   </button>
                 </div>
               ),
@@ -1359,10 +1322,19 @@ export default function MessageComposer({
           </div>
         )}
 
-        {/* COMPOSER */}
+        {/* =========================
+            COMPOSER ROW
+        ========================= */}
 
-        <div className="flex items-end gap-2">
-
+        <div
+          className="
+            flex
+            min-w-0
+            items-end
+            gap-1
+            sm:gap-2
+          "
+        >
           {/* ATTACHMENT */}
 
           <button
@@ -1374,7 +1346,9 @@ export default function MessageComposer({
               composerDisabled
             }
             className="
-              flex h-10 w-10
+              flex
+              h-9
+              w-9
               shrink-0
               items-center
               justify-center
@@ -1383,12 +1357,17 @@ export default function MessageComposer({
               transition
               hover:bg-slate-100
               hover:text-slate-700
+              active:scale-95
               disabled:cursor-not-allowed
               disabled:opacity-50
+              sm:h-10
+              sm:w-10
             "
             title="Attach file"
           >
-            <Paperclip size={20} />
+            <Paperclip
+              size={19}
+            />
           </button>
 
           <input
@@ -1408,22 +1387,27 @@ export default function MessageComposer({
 
           <div
             className="
-              relative
-              flex min-h-10 flex-1
+              flex
+              min-h-9
+              min-w-0
+              flex-1
               items-end
+              overflow-hidden
               rounded-2xl
-              border border-slate-200
+              border
+              border-slate-200
               bg-slate-50
-              px-3 py-2
+              px-2
+              py-1.5
               transition
               focus-within:border-slate-300
               focus-within:bg-white
+              sm:min-h-10
+              sm:px-3
+              sm:py-2
             "
           >
             <textarea
-              ref={
-                textareaRef
-              }
               value={message}
               onChange={
                 handleMessageChange
@@ -1437,91 +1421,54 @@ export default function MessageComposer({
               rows={1}
               placeholder="Type a message..."
               className="
-                max-h-32
-                min-h-6
+                min-h-5
+                min-w-0
+                max-h-24
                 flex-1
                 resize-none
+                overflow-y-auto
                 bg-transparent
                 px-1
-                text-sm
+                text-[13px]
+                leading-5
                 text-slate-800
                 outline-none
                 placeholder:text-slate-400
                 disabled:cursor-not-allowed
+                sm:max-h-32
+                sm:text-sm
               "
             />
 
             {/* EMOJI */}
 
-            <div
-              ref={
-                emojiPickerRef
+            <button
+              type="button"
+              disabled={
+                composerDisabled
               }
-              className="relative ml-1"
+              className="
+                ml-0.5
+                flex
+                h-7
+                w-7
+                shrink-0
+                items-center
+                justify-center
+                rounded-full
+                text-slate-400
+                transition
+                hover:bg-slate-100
+                hover:text-slate-600
+                disabled:opacity-50
+                sm:ml-1
+              "
+              title="Emoji"
             >
-              <button
-                type="button"
-                disabled={
-                  composerDisabled
-                }
-                onClick={() =>
-                  setIsEmojiPickerOpen(
-                    (previous) =>
-                      !previous,
-                  )
-                }
-                className="
-                  flex h-7 w-7
-                  shrink-0
-                  items-center
-                  justify-center
-                  rounded-full
-                  text-slate-400
-                  transition
-                  hover:bg-slate-100
-                  hover:text-slate-600
-                  disabled:opacity-50
-                "
-                title="Emoji"
-              >
-                <Smile size={19} />
-              </button>
-
-              {/* EMOJI PICKER */}
-
-              {isEmojiPickerOpen && (
-                <div
-                  className="
-                    absolute
-                    bottom-10
-                    right-0
-                    z-50
-                    overflow-hidden
-                    rounded-2xl
-                    shadow-2xl
-                  "
-                >
-                  <EmojiPicker
-                    onEmojiClick={
-                      handleEmojiClick
-                    }
-                    width={
-                      320
-                    }
-                    height={
-                      400
-                    }
-                    searchDisabled={
-                      false
-                    }
-                    previewConfig={{
-                      showPreview:
-                        true,
-                    }}
-                  />
-                </div>
-              )}
-            </div>
+              <Smile
+                size={18}
+              />
+            </button>
           </div>
 
           {/* VOICE */}
@@ -1537,7 +1484,9 @@ export default function MessageComposer({
                 0
             }
             className="
-              flex h-10 w-10
+              flex
+              h-9
+              w-9
               shrink-0
               items-center
               justify-center
@@ -1546,12 +1495,15 @@ export default function MessageComposer({
               transition
               hover:bg-slate-100
               hover:text-slate-700
+              active:scale-95
               disabled:cursor-not-allowed
               disabled:opacity-50
+              sm:h-10
+              sm:w-10
             "
             title="Record voice"
           >
-            <Mic size={20} />
+            <Mic size={19} />
           </button>
 
           {/* SEND */}
@@ -1570,7 +1522,9 @@ export default function MessageComposer({
               )
             }
             className="
-              flex h-10 w-10
+              flex
+              h-9
+              w-9
               shrink-0
               items-center
               justify-center
@@ -1579,22 +1533,29 @@ export default function MessageComposer({
               text-white
               transition
               hover:bg-slate-800
+              active:scale-95
               disabled:cursor-not-allowed
               disabled:bg-slate-200
               disabled:text-slate-400
+              sm:h-10
+              sm:w-10
             "
             title="Send message"
           >
-            <Send size={18} />
+            <Send size={17} />
           </button>
         </div>
 
-        {/* HELP TEXT */}
+        {/* =========================
+            HELP TEXT
+        ========================= */}
 
         <p
           className="
-            mx-auto mt-1
+            mx-auto
+            mt-1
             hidden
+            text-center
             text-[11px]
             text-slate-400
             sm:block
@@ -1607,4 +1568,3 @@ export default function MessageComposer({
     </div>
   );
 }
-``
