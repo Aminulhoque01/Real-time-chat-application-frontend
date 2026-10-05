@@ -9,6 +9,7 @@ import ChatNotificationToast from "../components/chat/ChatNotificationToast";
 
 import ThemeProvider from "@/src/components/providers/ThemeProvider";
 import ThemeToggle from "@/src/components/common/ThemeToggle";
+import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
   title: "ChatApp",
@@ -33,6 +34,12 @@ export default function RootLayout({
             <ChatNotificationToast />
 
             {children}
+              <Toaster
+              position="top-right"
+              toastOptions={{
+                duration: 3000,
+              }}
+            />
           </ReduxProvider>
 
           {/* Global Theme Button */}

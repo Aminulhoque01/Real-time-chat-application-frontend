@@ -1,13 +1,14 @@
+
 "use client";
 
 import { FormEvent, useState } from "react";
 import { Loader2, MessageCircle, Phone, User } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { toast } from "react-hot-toast";
+
 import { useAppDispatch } from "@/src/redux/hooks";
 import { useLoginMutation } from "@/src/redux/features/auth/authApi";
 import { setCredentials } from "@/src/redux/features/auth/authSlice";
-
- 
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,27 +18,72 @@ export default function LoginPage() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [error, setError] = useState("");
 
-  const handleSubmit = async (
-    e: FormEvent<HTMLFormElement>,
-  ) => {
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
-    setError("");
+    const trimmedName = name.trim();
+    const trimmedPhone = phone.trim();
 
-    if (!name.trim() || !phone.trim()) {
-      setError("Please enter your name and phone number.");
+    // =========================
+    // NAME VALIDATION
+    // =========================
+
+    if (!trimmedName) {
+      toast.error("Please enter your name.");
+      return;
+    }
+
+    if (trimmedName.length < 2) {
+      toast.error("Name must contain at least 2 characters.");
+      return;
+    }
+
+    // Prevent extremely long/random input
+    if (trimmedName.length > 50) {
+      toast.error("Name cannot be longer than 50 characters.");
+      return;
+    }
+
+    // =========================
+    // PHONE VALIDATION
+    // =========================
+
+    if (!trimmedPhone) {
+      toast.error("Please enter your phone number.");
+      return;
+    }
+
+    // Only numbers are allowed
+    const onlyNumbers = trimmedPhone.replace(/\D/g, "");
+
+    if (onlyNumbers.length < 6) {
+      toast.error("Phone number must contain at least 6 digits.");
+      return;
+    }
+
+    if (onlyNumbers.length > 15) {
+      toast.error("Phone number cannot contain more than 15 digits.");
+      return;
+    }
+
+    // If user entered letters/symbols with the number
+    if (!/^\d+$/.test(trimmedPhone)) {
+      toast.error("Phone number can contain numbers only.");
       return;
     }
 
     try {
       const response = await login({
-        name: name.trim(),
-        phone: phone.trim(),
+        name: trimmedName,
+        phone: trimmedPhone,
       }).unwrap();
 
       console.log("LOGIN SUCCESS:", response);
+
+      // =========================
+      // SAVE LOGIN CREDENTIALS
+      // =========================
 
       dispatch(
         setCredentials({
@@ -46,38 +92,40 @@ export default function LoginPage() {
         }),
       );
 
-      /*
-       * Backend currently returns token in response.
-       * Token handling will be implemented separately.
-       */
+      // =========================
+      // SUCCESS TOAST
+      // =========================
 
-      router.push("/chat");
+      toast.success(
+        `Welcome ${response.data?.user?.name || trimmedName}! Login successful.`,
+      );
+
+      // Give toast a moment to display
+      setTimeout(() => {
+        router.push("/chat");
+      }, 500);
     } catch (error) {
       console.error("LOGIN ERROR:", error);
 
-      setError(
-        "Unable to connect to server. Please try again.",
+      toast.error(
+        "Unable to connect to server. Please check your information and try again.",
       );
     }
   };
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden  px-4 py-8">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-8">
       {/* Background */}
-      <div className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full   blur-3xl" />
+      <div className="pointer-events-none absolute -left-32 -top-32 h-80 w-80 rounded-full blur-3xl" />
 
-      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full   blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-32 h-80 w-80 rounded-full blur-3xl" />
 
       <div className="relative w-full max-w-md">
         <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-6 shadow-2xl backdrop-blur-2xl sm:p-8">
-
           {/* Logo */}
           <div className="mb-7 flex justify-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-xl shadow-blue-600/30">
-              <MessageCircle
-                size={30}
-                className="text-white"
-              />
+              <MessageCircle size={30} className="text-white" />
             </div>
           </div>
 
@@ -92,17 +140,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Error */}
-          {error && (
-            <div className="mb-5 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-              {error}
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSubmit}
-            className="space-y-5"
-          >
+          <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
             <div>
               <label
@@ -122,12 +160,11 @@ export default function LoginPage() {
                   id="name"
                   type="text"
                   value={name}
-                  onChange={(e) =>
-                    setName(e.target.value)
-                  }
-                  placeholder="Aminul Haque"
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="Please enter your name."
                   required
                   disabled={isLoading}
+                  maxLength={50}
                   className="w-full rounded-xl border border-white/10 bg-black/20 py-3.5 pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
@@ -152,12 +189,16 @@ export default function LoginPage() {
                   id="phone"
                   type="tel"
                   value={phone}
-                  onChange={(e) =>
-                    setPhone(e.target.value)
-                  }
-                  placeholder="017XXXXXXXX"
+                  onChange={(e) => {
+                    // Numbers only
+                    const value = e.target.value.replace(/\D/g, "");
+                    setPhone(value);
+                  }}
+                  placeholder="01XXXXXXXXX"
                   required
                   disabled={isLoading}
+                  maxLength={15}
+                  inputMode="numeric"
                   className="w-full rounded-xl border border-white/10 bg-black/20 py-3.5 pl-12 pr-4 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
@@ -171,10 +212,7 @@ export default function LoginPage() {
             >
               {isLoading ? (
                 <>
-                  <Loader2
-                    size={18}
-                    className="animate-spin"
-                  />
+                  <Loader2 size={18} className="animate-spin" />
                   Connecting...
                 </>
               ) : (
@@ -184,8 +222,8 @@ export default function LoginPage() {
           </form>
 
           <p className="mt-6 text-center text-xs leading-5 text-slate-500">
-            New users will automatically get an account.
-            Existing users can continue directly.
+            New users will automatically get an account. Existing users can
+            continue directly.
           </p>
         </div>
 
@@ -196,3 +234,4 @@ export default function LoginPage() {
     </main>
   );
 }
+``
