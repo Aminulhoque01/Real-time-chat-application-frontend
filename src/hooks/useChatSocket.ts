@@ -2,7 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { io, Socket } from "socket.io-client";
+import { io, type Socket } from "socket.io-client";
 
 import { useAppDispatch, useAppSelector } from "@/src/redux/hooks";
 import { messageApi } from "@/src/redux/features/message/messageApi";
@@ -144,28 +144,20 @@ interface CallErrorPayload {
 // ======================================================
 
 const normalizeId = (value: unknown): string | null => {
-  if (value === null || value === undefined || value === "") {
-    return null;
-  }
+  if (value === null || value === undefined || value === "") return null;
 
   if (typeof value === "string") return value;
 
   if (typeof value === "object" && value !== null && "_id" in value) {
     const id = (value as { _id?: unknown })._id;
-
-    if (id !== null && id !== undefined && id !== "") {
-      return String(id);
-    }
+    if (id !== null && id !== undefined && id !== "") return String(id);
   }
 
   return String(value);
 };
 
 const getPopulatedSender = (message: Message): PopulatedSender | null => {
-  if (!message.senderId || typeof message.senderId !== "object") {
-    return null;
-  }
-
+  if (!message.senderId || typeof message.senderId !== "object") return null;
   return message.senderId as unknown as PopulatedSender;
 };
 
@@ -193,20 +185,14 @@ const getNotificationBody = (message: Message): string => {
 const isValidCallType = (value: unknown): value is CallType =>
   value === "audio" || value === "video";
 
-const getCallErrorMessage = (
-  error: unknown,
-  type: CallType,
-): string => {
-  const err = error as {
-    name?: string;
-    message?: string;
-  };
+const getCallErrorMessage = (error: unknown, type: CallType): string => {
+  const err = error as { name?: string; message?: string };
 
   switch (err?.name) {
     case "NotFoundError":
     case "DevicesNotFoundError":
       return type === "video"
-        ? "Camera or microphone was not found. Check that your camera and microphone are connected."
+        ? "Camera or microphone was not found. Check that your devices are connected."
         : "No microphone was found. Connect a microphone or check your audio input device.";
 
     case "NotAllowedError":
@@ -215,7 +201,7 @@ const getCallErrorMessage = (
       return "Camera or microphone access was denied. Allow access in your browser's site settings and try again.";
 
     case "NotReadableError":
-      return "Your camera or microphone may be in use by another application. Close that application and try again.";
+      return "Your camera or microphone may be in use by another application.";
 
     case "OverconstrainedError":
       return "Your camera or microphone does not support the requested settings.";
@@ -301,7 +287,7 @@ export default function useChatSocket({
   }, [onUserUnblocked]);
 
   // ====================================================
-  // CHAT SOUNDS + CALL RINGTONE
+  // AUDIO
   // ====================================================
 
   const incomingAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -347,12 +333,11 @@ export default function useChatSocket({
     try {
       audio.pause();
       audio.currentTime = 0;
-
       void audio.play().catch((error) => {
         console.warn("Unable to play incoming sound:", error);
       });
     } catch (error) {
-      console.error("Incoming sound error:", error);
+      console.warn("Incoming sound error:", error);
     }
   }, []);
 
@@ -363,12 +348,11 @@ export default function useChatSocket({
     try {
       audio.pause();
       audio.currentTime = 0;
-
       void audio.play().catch((error) => {
         console.warn("Unable to play notification sound:", error);
       });
     } catch (error) {
-      console.error("Notification sound error:", error);
+      console.warn("Notification sound error:", error);
     }
   }, []);
 
@@ -416,9 +400,7 @@ export default function useChatSocket({
 
   const getElapsedCallDuration = useCallback(() => {
     const startedAt = callStartedAtRef.current;
-
     if (startedAt === null) return 0;
-
     return Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
   }, []);
 
@@ -437,15 +419,12 @@ export default function useChatSocket({
       const startedAt = callStartedAtRef.current;
       if (startedAt === null) return;
 
-      setCallDuration(
-        Math.max(0, Math.floor((Date.now() - startedAt) / 1000)),
-      );
+      setCallDuration(Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
     };
 
     updateDuration();
 
     const intervalId = window.setInterval(updateDuration, 1000);
-
     return () => window.clearInterval(intervalId);
   }, [callStatus]);
 
@@ -511,7 +490,7 @@ export default function useChatSocket({
   }, [stopCallMedia, updateCallStatus]);
 
   // ====================================================
-  // CALL RINGTONE CONTROL
+  // CALL RINGTONE
   // ====================================================
 
   useEffect(() => {
@@ -526,6 +505,7 @@ export default function useChatSocket({
 
       if (audio.paused) {
         void audio.play().catch((error) => {
+          // Browsers may block audio until the user interacts with the page.
           console.warn("Unable to play call ringtone:", error);
         });
       }
@@ -550,9 +530,7 @@ export default function useChatSocket({
     }
 
     const peer = new RTCPeerConnection({
-      iceServers: [
-        { urls: "stun:stun.l.google.com:19302" },
-      ],
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
     });
 
     peer.onicecandidate = (event) => {
@@ -581,9 +559,7 @@ export default function useChatSocket({
           .getTracks()
           .some((track) => track.id === event.track.id);
 
-        if (!alreadyAdded) {
-          stream.addTrack(event.track);
-        }
+        if (!alreadyAdded) stream.addTrack(event.track);
       }
 
       remoteStreamRef.current = stream;
@@ -596,12 +572,13 @@ export default function useChatSocket({
         updateCallStatus("connected");
       }
 
-      if (peer.connectionState === "failed") {
+      if (
+        peer.connectionState === "failed" &&
+        peerConnectionRef.current === peer
+      ) {
         console.error("WebRTC connection failed.");
 
-        const finalDuration = getElapsedCallDuration();
-        setLastCallDuration(finalDuration);
-
+        setLastCallDuration(getElapsedCallDuration());
         resetCallState();
 
         setCallError(
@@ -615,7 +592,6 @@ export default function useChatSocket({
     };
 
     peerConnectionRef.current = peer;
-
     return peer;
   }, [updateCallStatus, getElapsedCallDuration, resetCallState]);
 
@@ -664,7 +640,6 @@ export default function useChatSocket({
         stream?.getTracks().forEach((track) => track.stop());
 
         localStreamRef.current?.getTracks().forEach((track) => track.stop());
-
         localStreamRef.current = null;
         setLocalStream(null);
 
@@ -683,6 +658,7 @@ export default function useChatSocket({
         }
 
         peerConnectionRef.current = null;
+
         remoteStreamRef.current?.getTracks().forEach((track) => track.stop());
         remoteStreamRef.current = null;
         setRemoteStream(null);
@@ -713,6 +689,71 @@ export default function useChatSocket({
       }
     },
     [],
+  );
+
+  // ====================================================
+  // PROCESS INCOMING OFFER
+  // ====================================================
+
+  const processIncomingOffer = useCallback(
+    async (
+      data: CallOfferPayload,
+      socket: Socket,
+    ): Promise<void> => {
+      if (data.callId !== activeCallIdRef.current) return;
+
+      // The offer can arrive while the receiver is still granting media
+      // permissions. Keep it until local media and peer connection are ready.
+      if (!localStreamRef.current || !peerConnectionRef.current) {
+        pendingOfferRef.current = data.offer;
+        return;
+      }
+
+      try {
+        const peer = peerConnectionRef.current;
+
+        if (peer.signalingState !== "stable") {
+          console.warn(
+            "Cannot process offer in signaling state:",
+            peer.signalingState,
+          );
+          return;
+        }
+
+        await peer.setRemoteDescription(
+          new RTCSessionDescription(data.offer),
+        );
+
+        await flushPendingIceCandidates(peer);
+
+        const answer = await peer.createAnswer();
+        await peer.setLocalDescription(answer);
+
+        const callerId = data.callerId || callPeerIdRef.current;
+
+        if (!callerId) {
+          throw new Error("Caller ID is missing from the active call.");
+        }
+
+        if (
+          !socket.connected ||
+          socketRef.current !== socket ||
+          data.callId !== activeCallIdRef.current
+        ) {
+          return;
+        }
+
+        socket.emit("call:answer", {
+          callId: data.callId,
+          callerId,
+          answer: peer.localDescription,
+        });
+      } catch (error) {
+        console.error("Failed to handle call offer:", error);
+        setCallError("Could not process the call offer.");
+      }
+    },
+    [flushPendingIceCandidates],
   );
 
   // ====================================================
@@ -772,10 +813,8 @@ export default function useChatSocket({
       } catch (error) {
         console.error("Failed to start call:", error);
 
-        const message = getCallErrorMessage(error, type);
-
         resetCallState();
-        setCallError(message);
+        setCallError(getCallErrorMessage(error, type));
 
         return false;
       }
@@ -821,36 +860,26 @@ export default function useChatSocket({
 
       updateCallStatus("connecting");
 
+      // Usually the offer arrives after call:accepted. If it arrived early,
+      // process the queued offer now that local media is ready.
       const pendingOffer = pendingOfferRef.current;
 
       if (pendingOffer) {
         pendingOfferRef.current = null;
 
-        const peer = peerConnectionRef.current;
-
-        if (peer) {
-          await peer.setRemoteDescription(
-            new RTCSessionDescription(pendingOffer),
-          );
-
-          await flushPendingIceCandidates(peer);
-
-          const answer = await peer.createAnswer();
-          await peer.setLocalDescription(answer);
-
-          socket.emit("call:answer", {
+        await processIncomingOffer(
+          {
             callId: call.callId,
             callerId: call.callerId,
-            answer: peer.localDescription,
-          });
-        }
+            offer: pendingOffer,
+          },
+          socket,
+        );
       }
 
       return true;
     } catch (error) {
       console.error("Failed to accept call:", error);
-
-      const message = getCallErrorMessage(error, call.type);
 
       if (socket.connected) {
         socket.emit("call:reject", {
@@ -861,16 +890,14 @@ export default function useChatSocket({
 
       setLastCallDuration(0);
       resetCallState();
-
-      // Set the error after resetCallState because reset clears it.
-      setCallError(message);
+      setCallError(getCallErrorMessage(error, call.type));
 
       return false;
     }
   }, [
     incomingCall,
     getCallMedia,
-    flushPendingIceCandidates,
+    processIncomingOffer,
     updateCallStatus,
     resetCallState,
   ]);
@@ -1033,19 +1060,20 @@ export default function useChatSocket({
       const normalizedId = normalizeId(id);
       if (!normalizedId) return false;
 
-      const alreadyJoined = joinedConversationRef.current;
-
-      if (alreadyJoined === normalizedId) {
+      if (joinedConversationRef.current === normalizedId) {
         markConversationAsRead(normalizedId);
         return true;
       }
 
-      if (alreadyJoined) {
+      const previousId = joinedConversationRef.current;
+
+      if (previousId) {
         socket.emit("conversation:leave", {
-          conversationId: alreadyJoined,
+          conversationId: previousId,
         });
       }
 
+      // Wait for conversation:joined before marking the room as joined.
       joinedConversationRef.current = null;
 
       socket.emit("conversation:join", {
@@ -1076,7 +1104,10 @@ export default function useChatSocket({
       socket.removeAllListeners();
       socket.io.removeAllListeners();
       socket.disconnect();
-      socketRef.current = null;
+
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
     }
 
     joinedConversationRef.current = null;
@@ -1092,6 +1123,8 @@ export default function useChatSocket({
   useEffect(() => {
     if (!token || !currentUserId) return;
 
+    let disposed = false;
+
     const socketUrl =
       process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:5000";
 
@@ -1103,6 +1136,7 @@ export default function useChatSocket({
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       randomizationFactor: 0.5,
+      timeout: 20000,
     });
 
     socketRef.current = socket;
@@ -1112,7 +1146,6 @@ export default function useChatSocket({
       console.log("Socket connected:", socket.id);
 
       const currentConversation = conversationIdRef.current;
-
       if (currentConversation) joinConversation(currentConversation);
 
       if (pendingReadMessageIds.current.size > 0) {
@@ -1143,18 +1176,23 @@ export default function useChatSocket({
       console.error("Socket connection error:", error.message);
     });
 
-    // CONVERSATION EVENTS
+    // CONVERSATION JOINED
     socket.on(
       "conversation:joined",
       ({ conversationId: joinedId }: { conversationId: string }) => {
         const normalizedId = normalizeId(joinedId);
-        if (!normalizedId) return;
+        if (!normalizedId || disposed) return;
+
+        // Ignore a delayed acknowledgement for a conversation no longer selected.
+        if (conversationIdRef.current !== normalizedId) {
+          socket.emit("conversation:leave", {
+            conversationId: normalizedId,
+          });
+          return;
+        }
 
         joinedConversationRef.current = normalizedId;
-
-        if (conversationIdRef.current === normalizedId) {
-          markConversationAsRead(normalizedId);
-        }
+        markConversationAsRead(normalizedId);
       },
     );
 
@@ -1163,10 +1201,7 @@ export default function useChatSocket({
       ({ conversationId: leftId }: { conversationId: string }) => {
         const normalizedId = normalizeId(leftId);
 
-        if (
-          normalizedId &&
-          joinedConversationRef.current === normalizedId
-        ) {
+        if (normalizedId && joinedConversationRef.current === normalizedId) {
           joinedConversationRef.current = null;
         }
       },
@@ -1183,11 +1218,12 @@ export default function useChatSocket({
       }
     });
 
+    // CONVERSATION READ UPDATE
     socket.on("conversation:read:update", (data: ConversationReadUpdate) => {
-      const conversationId = normalizeId(data.conversationId);
+      const readConversationId = normalizeId(data.conversationId);
       const userId = normalizeId(data.userId);
 
-      if (!conversationId || !userId) return;
+      if (!readConversationId || !userId) return;
 
       if (String(currentUserIdRef.current) === userId) {
         dispatch(
@@ -1196,7 +1232,7 @@ export default function useChatSocket({
             undefined,
             (draft) => {
               const conversation = draft.find(
-                (item) => String(item._id) === conversationId,
+                (item) => String(item._id) === readConversationId,
               );
 
               if (conversation) conversation.unreadCount = 0;
@@ -1209,7 +1245,11 @@ export default function useChatSocket({
         dispatch(
           messageApi.util.updateQueryData(
             "getMessages",
-            { conversationId, page: 1, limit: 30 },
+            {
+              conversationId: readConversationId,
+              page: 1,
+              limit: 30,
+            },
             (draft) => {
               data.messageIds.forEach((id) => {
                 const message = draft.messages.find(
@@ -1328,25 +1368,26 @@ export default function useChatSocket({
         ),
       );
 
+      let conversationExists = false;
+
       dispatch(
         conversationApi.util.updateQueryData(
           "getConversations",
           undefined,
           (draft) => {
-            const conversation = draft.find(
+            const index = draft.findIndex(
               (item) => String(item._id) === messageConversationId,
             );
 
-            if (!conversation) {
-              dispatch(
-                conversationApi.util.invalidateTags(["Conversation"]),
-              );
-              return;
-            }
+            if (index === -1) return;
+
+            conversationExists = true;
+            const conversation = draft[index];
+
+            if (!conversation) return;
 
             conversation.lastMessage =
               message as typeof conversation.lastMessage;
-
             conversation.updatedAt = message.updatedAt || message.createdAt;
 
             if (
@@ -1358,10 +1399,6 @@ export default function useChatSocket({
                 (conversation.unreadCount || 0) + 1;
             }
 
-            const index = draft.findIndex(
-              (item) => String(item._id) === messageConversationId,
-            );
-
             if (index > 0) {
               const [updated] = draft.splice(index, 1);
               if (updated) draft.unshift(updated);
@@ -1369,6 +1406,10 @@ export default function useChatSocket({
           },
         ),
       );
+
+      if (!conversationExists) {
+        dispatch(conversationApi.util.invalidateTags(["Conversation"]));
+      }
     });
 
     // DELIVERY UPDATE
@@ -1671,7 +1712,7 @@ export default function useChatSocket({
 
       const currentId = String(currentUserIdRef.current ?? "");
 
-      // Backend may send the incoming event to the caller too.
+      // Backend also sends call:incoming to the caller.
       if (String(data.callerId) === currentId) {
         activeCallIdRef.current = data.callId;
         callPeerIdRef.current = String(data.receiverId);
@@ -1717,6 +1758,7 @@ export default function useChatSocket({
       setActiveCallId(data.callId);
       updateCallStatus("connecting");
 
+      // Only the caller creates and sends the offer.
       if (!isCaller) return;
 
       try {
@@ -1724,6 +1766,14 @@ export default function useChatSocket({
 
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
+
+        if (
+          !socket.connected ||
+          socketRef.current !== socket ||
+          data.callId !== activeCallIdRef.current
+        ) {
+          return;
+        }
 
         socket.emit("call:offer", {
           callId: data.callId,
@@ -1737,41 +1787,9 @@ export default function useChatSocket({
     });
 
     // RECEIVE OFFER
-    socket.on("call:offer", async (data: CallOfferPayload) => {
+    socket.on("call:offer", (data: CallOfferPayload) => {
       if (data.callId !== activeCallIdRef.current) return;
-
-      if (!localStreamRef.current) {
-        pendingOfferRef.current = data.offer;
-        return;
-      }
-
-      try {
-        const peer = peerConnectionRef.current ?? createPeerConnection();
-
-        await peer.setRemoteDescription(
-          new RTCSessionDescription(data.offer),
-        );
-
-        await flushPendingIceCandidates(peer);
-
-        const answer = await peer.createAnswer();
-        await peer.setLocalDescription(answer);
-
-        const callerId = data.callerId || callPeerIdRef.current;
-
-        if (!callerId) {
-          throw new Error("Caller ID is missing from the active call.");
-        }
-
-        socket.emit("call:answer", {
-          callId: data.callId,
-          callerId,
-          answer: peer.localDescription,
-        });
-      } catch (error) {
-        console.error("Failed to handle call offer:", error);
-        setCallError("Could not process the call offer.");
-      }
+      void processIncomingOffer(data, socket);
     });
 
     // RECEIVE ANSWER
@@ -1854,12 +1872,8 @@ export default function useChatSocket({
 
       const message = error.message || "A calling error occurred.";
 
-      const finalDuration = getElapsedCallDuration();
-      setLastCallDuration(finalDuration);
-
+      setLastCallDuration(getElapsedCallDuration());
       resetCallState();
-
-      // resetCallState clears errors, so set this afterwards.
       setCallError(message);
     });
 
@@ -1877,6 +1891,8 @@ export default function useChatSocket({
 
     // CLEANUP
     return () => {
+      disposed = true;
+
       const joinedConversation = joinedConversationRef.current;
 
       if (joinedConversation && socket.connected) {
@@ -1906,6 +1922,7 @@ export default function useChatSocket({
     playIncomingMessageSound,
     playNotificationSound,
     createPeerConnection,
+    processIncomingOffer,
     flushPendingIceCandidates,
     resetCallState,
     updateCallStatus,
@@ -1975,27 +1992,24 @@ export default function useChatSocket({
   // EDIT MESSAGE
   // ====================================================
 
-  const editMessageRealtime = useCallback(
-    (messageId: string, text: string) => {
-      const socket = socketRef.current;
+  const editMessageRealtime = useCallback((messageId: string, text: string) => {
+    const socket = socketRef.current;
 
-      if (!socket?.connected) {
-        console.error("Socket is not connected. Cannot edit message.");
-        return false;
-      }
+    if (!socket?.connected) {
+      console.error("Socket is not connected. Cannot edit message.");
+      return false;
+    }
 
-      const trimmedText = text.trim();
-      if (!messageId || !trimmedText) return false;
+    const trimmedText = text.trim();
+    if (!messageId || !trimmedText) return false;
 
-      socket.emit("message:edit", {
-        messageId: String(messageId),
-        text: trimmedText,
-      });
+    socket.emit("message:edit", {
+      messageId: String(messageId),
+      text: trimmedText,
+    });
 
-      return true;
-    },
-    [],
-  );
+    return true;
+  }, []);
 
   // ====================================================
   // REACTION
