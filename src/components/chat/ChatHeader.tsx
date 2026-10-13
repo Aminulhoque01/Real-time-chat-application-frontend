@@ -1,3 +1,6 @@
+
+
+
 "use client";
 
 import {
@@ -13,6 +16,10 @@ import type {
   ConversationUser,
 } from "@/src/redux/features/conversation/conversation.types";
 
+// ==================================================
+// TYPES
+// ==================================================
+
 interface ChatHeaderProps {
   conversation: Conversation;
   name: string;
@@ -21,19 +28,20 @@ interface ChatHeaderProps {
 
   onOpenSidebar: () => void;
   onOpenProfile: () => void;
-
-  // Group details
   onOpenGroupDetails: () => void;
+
+  // WebRTC calls
+  onStartAudioCall: () => void;
+  onStartVideoCall: () => void;
+  isCallDisabled?: boolean;
 }
 
 // ==================================================
-// FORMAT LAST SEEN
+// HELPERS
 // ==================================================
 
-const formatLastSeen = (date?: string | null) => {
-  if (!date) {
-    return "Offline";
-  }
+const formatLastSeen = (date?: string | null): string => {
+  if (!date) return "Offline";
 
   const lastSeen = new Date(date);
 
@@ -59,19 +67,32 @@ export default function ChatHeader({
   onOpenSidebar,
   onOpenProfile,
   onOpenGroupDetails,
+  onStartAudioCall,
+  onStartVideoCall,
+  isCallDisabled = false,
 }: ChatHeaderProps) {
   const isGroup = conversation.type === "group";
 
-  /*
-   * Direct conversation:
-   *   avatar prop
-   *
-   * Group conversation:
-   *   conversation.groupPhoto
-   */
+  const canCall =
+    !isGroup &&
+    Boolean(otherUser?._id) &&
+    !isCallDisabled;
+
   const displayAvatar = isGroup
     ? conversation.groupPhoto || null
-    : avatar;
+    : avatar || otherUser?.avatar || null;
+
+  const displayName = name?.trim() || "Unknown user";
+
+  const initial = displayName.charAt(0).toUpperCase();
+
+  const callDisabledReason = isGroup
+    ? "Calls are available in direct chats only"
+    : isCallDisabled
+      ? "A call is already in progress"
+      : !otherUser?._id
+        ? "User information is unavailable"
+        : "";
 
   // ==================================================
   // PROFILE / GROUP DETAILS
@@ -86,36 +107,24 @@ export default function ChatHeader({
     onOpenProfile();
   };
 
+  // ==================================================
+  // RENDER
+  // ==================================================
+
   return (
     <header
       className="
-        flex
-        h-[68px]
-        shrink-0
-        items-center
-        justify-between
-        border-b
-        border-slate-100
-        bg-white
-        px-3
-        sm:h-[72px]
-        sm:px-6
+        flex h-[68px] shrink-0
+        items-center justify-between gap-2
+        border-b border-slate-200
+        bg-white px-3
+        sm:h-[72px] sm:px-6
       "
     >
-      {/* ==================================================
-          LEFT SIDE
-      ================================================== */}
+      {/* LEFT SIDE */}
 
-      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
-        {/* ==================================================
-            MOBILE SIDEBAR BUTTON
-
-            Desktop:
-              hidden
-
-            Mobile:
-              visible
-        ================================================== */}
+      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+        {/* MOBILE SIDEBAR */}
 
         <button
           type="button"
@@ -123,20 +132,14 @@ export default function ChatHeader({
           aria-label="Open conversations"
           title="Open conversations"
           className="
-            flex
-            h-10
-            w-10
-            shrink-0
-            items-center
-            justify-center
-            rounded-xl
-            border
-            border-slate-200
-            bg-slate-50
-            text-slate-600
-            transition
-            hover:bg-slate-100
-            hover:text-slate-900
+            flex h-10 w-10 shrink-0
+            items-center justify-center
+            rounded-xl border border-slate-200
+            bg-slate-50 text-slate-600
+            transition-colors
+            hover:bg-slate-100 hover:text-slate-900
+            focus-visible:outline-none
+            focus-visible:ring-2 focus-visible:ring-blue-500
             active:scale-95
             lg:hidden
           "
@@ -144,140 +147,99 @@ export default function ChatHeader({
           <Menu size={20} strokeWidth={2} />
         </button>
 
-        {/* ==================================================
-            PROFILE / GROUP BUTTON
-        ================================================== */}
+        {/* PROFILE / GROUP DETAILS */}
 
         <button
           type="button"
           onClick={handleProfileClick}
           aria-label={
-            isGroup
-              ? "Open group details"
-              : "Open profile"
+            isGroup ? "Open group details" : "Open profile"
+          }
+          title={
+            isGroup ? "Open group details" : "Open profile"
           }
           className="
-            flex
-            min-w-0
-            max-w-[calc(100vw-150px)]
-            items-center
-            gap-2
-            rounded-xl
-            px-1
-            py-1
-            text-left
-            transition
+            flex min-w-0 flex-1
+            items-center gap-2
+            rounded-xl px-1 py-1
+            text-left transition-colors
             hover:bg-slate-50
-            sm:max-w-[calc(100vw-220px)]
+            focus-visible:outline-none
+            focus-visible:ring-2 focus-visible:ring-blue-500
             sm:gap-3
           "
         >
-          {/* ==================================================
-              AVATAR
-          ================================================== */}
+          {/* AVATAR */}
 
           <div className="relative shrink-0">
             {displayAvatar ? (
               <img
                 src={displayAvatar}
-                alt={name}
+                alt={`${displayName} avatar`}
                 className="
-                  h-10
-                  w-10
-                  rounded-full
+                  h-10 w-10 rounded-full
+                  border border-slate-100
                   object-cover
-                  sm:h-11
-                  sm:w-11
+                  sm:h-11 sm:w-11
                 "
               />
             ) : isGroup ? (
-              /*
-               * GROUP FALLBACK
-               */
               <div
                 className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-slate-900
-                  text-white
-                  sm:h-11
-                  sm:w-11
+                  flex h-10 w-10 items-center
+                  justify-center rounded-full
+                  bg-slate-900 text-white
+                  sm:h-11 sm:w-11
                 "
               >
                 <Users size={19} />
               </div>
             ) : (
-              /*
-               * DIRECT CHAT FALLBACK
-               */
               <div
                 className="
-                  flex
-                  h-10
-                  w-10
-                  items-center
-                  justify-center
-                  rounded-full
-                  bg-slate-900
-                  text-sm
-                  font-bold
+                  flex h-10 w-10 items-center
+                  justify-center rounded-full
+                  bg-slate-900 text-sm font-bold
                   text-white
-                  sm:h-11
-                  sm:w-11
+                  sm:h-11 sm:w-11
                 "
               >
-                {name.charAt(0).toUpperCase()}
+                {initial}
               </div>
             )}
 
-            {/* ==================================================
-                ONLINE STATUS
-                DIRECT CHAT ONLY
-            ================================================== */}
+            {/* ONLINE STATUS */}
 
             {!isGroup && otherUser?.isOnline && (
               <span
+                aria-label="Online"
+                title="Online"
                 className="
-                  absolute
-                  bottom-0
-                  right-0
-                  h-3
-                  w-3
-                  rounded-full
-                  border-2
-                  border-white
+                  absolute bottom-0 right-0
+                  h-3 w-3 rounded-full
+                  border-2 border-white
                   bg-emerald-500
                 "
               />
             )}
           </div>
 
-          {/* ==================================================
-              NAME + STATUS
-          ================================================== */}
+          {/* NAME + STATUS */}
 
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h2
               className="
-                truncate
-                text-sm
-                font-bold
+                truncate text-sm font-bold
                 text-slate-800
                 sm:text-base
               "
             >
-              {name}
+              {displayName}
             </h2>
 
             <p
               className="
-                mt-0.5
-                truncate
-                text-[10px]
+                mt-0.5 truncate text-[10px]
                 text-slate-400
                 sm:text-xs
               "
@@ -286,89 +248,87 @@ export default function ChatHeader({
                 ? `${conversation.participants.length} members`
                 : otherUser?.isOnline
                   ? "Active now"
-                  : formatLastSeen(
-                      otherUser?.lastSeen,
-                    )}
+                  : formatLastSeen(otherUser?.lastSeen)}
             </p>
           </div>
         </button>
       </div>
 
-      {/* ==================================================
-          RIGHT ACTIONS
-      ================================================== */}
+      {/* RIGHT ACTIONS */}
 
       <div className="flex shrink-0 items-center gap-0.5 sm:gap-1">
-        {/* ==================================================
-            PHONE
-        ================================================== */}
+        {/* AUDIO CALL */}
 
         <button
           type="button"
+          onClick={onStartAudioCall}
+          disabled={!canCall}
+          title={
+            canCall
+              ? "Start audio call"
+              : callDisabledReason
+          }
+          aria-label="Start audio call"
           className="
-            hidden
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-xl
-            text-slate-400
-            transition
-            hover:bg-slate-100
-            hover:text-slate-700
-            sm:flex
+            flex h-9 w-9 shrink-0
+            items-center justify-center
+            rounded-xl text-slate-500
+            transition-colors
+            hover:bg-emerald-50 hover:text-emerald-600
+            focus-visible:outline-none
+            focus-visible:ring-2 focus-visible:ring-emerald-500
+            disabled:cursor-not-allowed
+            disabled:opacity-30
+            sm:h-10 sm:w-10
           "
-          aria-label="Start phone call"
         >
           <Phone size={18} />
         </button>
 
-        {/* ==================================================
-            VIDEO
-        ================================================== */}
+        {/* VIDEO CALL */}
 
         <button
           type="button"
-          className="
-            hidden
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-xl
-            text-slate-400
-            transition
-            hover:bg-slate-100
-            hover:text-slate-700
-            sm:flex
-          "
+          onClick={onStartVideoCall}
+          disabled={!canCall}
+          title={
+            canCall
+              ? "Start video call"
+              : callDisabledReason
+          }
           aria-label="Start video call"
+          className="
+            flex h-9 w-9 shrink-0
+            items-center justify-center
+            rounded-xl text-slate-500
+            transition-colors
+            hover:bg-blue-50 hover:text-blue-600
+            focus-visible:outline-none
+            focus-visible:ring-2 focus-visible:ring-blue-500
+            disabled:cursor-not-allowed
+            disabled:opacity-30
+            sm:h-10 sm:w-10
+          "
         >
           <Video size={19} />
         </button>
 
-        {/* ==================================================
-            MORE
-        ================================================== */}
+        {/* MORE OPTIONS */}
 
         <button
           type="button"
-          className="
-            flex
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-xl
-            text-slate-400
-            transition
-            hover:bg-slate-100
-            hover:text-slate-700
-            active:scale-95
-            hover:bg-slate-100
-            hover:text-slate-700
-          "
           aria-label="More options"
+          title="More options"
+          className="
+            flex h-9 w-9 shrink-0
+            items-center justify-center
+            rounded-xl text-slate-400
+            transition-colors
+            hover:bg-slate-100 hover:text-slate-700
+            focus-visible:outline-none
+            focus-visible:ring-2 focus-visible:ring-slate-400
+            active:scale-95
+          "
         >
           <MoreVertical size={19} />
         </button>
@@ -376,3 +336,4 @@ export default function ChatHeader({
     </header>
   );
 }
+ 

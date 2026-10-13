@@ -1,3 +1,6 @@
+
+
+
 "use client";
 
 import {
@@ -7,16 +10,14 @@ import {
 } from "react";
 
 import { useRouter } from "next/navigation";
-
 import { Menu } from "lucide-react";
 
 import ChatSidebar from "./ChatSidebar";
 import ChatUI from "./ChatUI";
 import ProfileModal from "../ProfileModal/ProfileModal";
 
-import type {
-  MessageSendPayload,
-} from "./MessageComposer";
+import type { MessageSendPayload } from "./MessageComposer";
+import type { Message } from "@/src/redux/features/message/message.types";
 
 import {
   useAppDispatch,
@@ -47,174 +48,93 @@ import {
   updateUser,
 } from "@/src/redux/features/auth/authSlice";
 
-import type {
-  Message,
-} from "@/src/redux/features/message/message.types";
-
 import useChatSocket from "@/src/hooks/useChatSocket";
+import { usePushNotification } from "@/src/hooks/usePushNotification";
 
-// =====================================================
-// PUSH NOTIFICATION
-// =====================================================
-
-import {
-  usePushNotification,
-} from "@/src/hooks/usePushNotification";
-
-// =====================================================
-// CHAT LAYOUT
-// =====================================================
+type CallType = "audio" | "video";
 
 export default function ChatLayout() {
-  // =====================================================
-  // ROUTER
-  // =====================================================
-
   const router = useRouter();
-
-  // =====================================================
-  // REDUX DISPATCH
-  // =====================================================
-
   const dispatch = useAppDispatch();
 
   // =====================================================
-  // AUTH USER
+  // AUTH + PUSH NOTIFICATION
   // =====================================================
 
   const user = useAppSelector(
     (state) => state.auth.user,
   );
 
-  // =====================================================
-  // PUSH NOTIFICATION
-  // =====================================================
+  const currentUserId = user?._id
+    ? String(user._id)
+    : null;
 
   usePushNotification({
-    userId: user?._id
-      ? String(user._id)
-      : undefined,
+    userId: currentUserId ?? undefined,
   });
 
   // =====================================================
   // CONVERSATIONS
   // =====================================================
 
-  const {
-    data: conversations = [],
-  } = useGetConversationsQuery();
-
-  // =====================================================
-  // SELECTED CONVERSATION
-  // =====================================================
+  const { data: conversations = [] } =
+    useGetConversationsQuery();
 
   const [
     selectedConversationId,
     setSelectedConversationId,
   ] = useState<string | null>(null);
 
-  // =====================================================
-  // REPLY MESSAGE
-  // =====================================================
+  const [replyingTo, setReplyingTo] =
+    useState<Message | null>(null);
 
-  const [
-    replyingTo,
-    setReplyingTo,
-  ] = useState<Message | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] =
+    useState(true);
 
-  // =====================================================
-  // SIDEBAR
-  //
-  // IMPORTANT:
-  //
-  // true  = sidebar visible
-  // false = sidebar hidden on mobile
-  //
-  // Desktop:
-  // ChatSidebar uses lg:translate-x-0,
-  // so it stays visible regardless of this state.
-  // =====================================================
-
-  const [
-    isSidebarOpen,
-    setIsSidebarOpen,
-  ] = useState(true);
+  const [typingUserId, setTypingUserId] =
+    useState<string | null>(null);
 
   // =====================================================
-  // TYPING USER
+  // PROFILE STATE
   // =====================================================
 
-  const [
-    typingUserId,
-    setTypingUserId,
-  ] = useState<string | null>(null);
+  const [isProfileOpen, setIsProfileOpen] =
+    useState(false);
 
-  // =====================================================
-  // PROFILE MODAL
-  // =====================================================
+  const [profileUserId, setProfileUserId] =
+    useState<string | null>(null);
 
-  const [
-    isProfileOpen,
-    setIsProfileOpen,
-  ] = useState(false);
+  // Profile modal block state
+  const [isBlocked, setIsBlocked] =
+    useState(false);
 
-  const [
-    profileUserId,
-    setProfileUserId,
-  ] = useState<string | null>(null);
+  const [blockedByMe, setBlockedByMe] =
+    useState(false);
 
-  const [
-    isBlocked,
-    setIsBlocked,
-  ] = useState(false);
+  const [blockedByOther, setBlockedByOther] =
+    useState(false);
 
-  const [
-    blockedByMe,
-    setBlockedByMe,
-  ] = useState(false);
+  const [canUnblock, setCanUnblock] =
+    useState(false);
 
-  const [
-    blockedByOther,
-    setBlockedByOther,
-  ] = useState(false);
+  const [isEditingProfile, setIsEditingProfile] =
+    useState(false);
 
-  const [
-    canUnblock,
-    setCanUnblock,
-  ] = useState(false);
+  const [editName, setEditName] =
+    useState("");
 
-  // =====================================================
-  // EDIT PROFILE MODE
-  // =====================================================
-
-  const [
-    isEditingProfile,
-    setIsEditingProfile,
-  ] = useState(false);
-
-  const [
-    editName,
-    setEditName,
-  ] = useState("");
-
-  const [
-    editBio,
-    setEditBio,
-  ] = useState("");
+  const [editBio, setEditBio] =
+    useState("");
 
   // =====================================================
   // SEND MESSAGE
   // =====================================================
 
-  const [
-    sendMessage,
-    {
-      isLoading: isSending,
-    },
-  ] = useSendMessageMutation();
+  const [sendMessage, { isLoading: isSending }] =
+    useSendMessageMutation();
 
   // =====================================================
-  // SELECTED CONVERSATION DATA
+  // SELECTED CONVERSATION
   // =====================================================
 
   const selectedConversation =
@@ -224,29 +144,46 @@ export default function ChatLayout() {
         String(selectedConversationId),
     ) ?? null;
 
-  // =====================================================
-  // CURRENT OTHER USER IN DIRECT CHAT
-  // =====================================================
-
   const selectedDirectOtherUser =
-    selectedConversation?.type ===
-    "direct"
+    selectedConversation?.type === "direct"
       ? selectedConversation.participants.find(
           (participant) =>
             String(participant._id) !==
-            String(user?._id),
-        )
+            String(currentUserId),
+        ) ?? null
       : null;
 
   const selectedDirectOtherUserId =
     selectedDirectOtherUser?._id
-      ? String(
-          selectedDirectOtherUser._id,
-        )
+      ? String(selectedDirectOtherUser._id)
       : null;
 
   // =====================================================
-  // TYPING USER DATA
+  // SELECTED CHAT BLOCK STATUS
+  // =====================================================
+  // Important:
+  // The selected chat's block status must not depend on
+  // whether the profile modal has been opened.
+
+  const {
+    data: selectedChatBlockStatus,
+    isLoading: isSelectedChatBlockStatusLoading,
+  } = useGetBlockStatusQuery(
+    selectedDirectOtherUserId as string,
+    {
+      skip: !selectedDirectOtherUserId,
+    },
+  );
+
+  const isCurrentChatBlocked =
+    Boolean(selectedDirectOtherUserId) &&
+    (
+      isSelectedChatBlockStatusLoading ||
+      selectedChatBlockStatus?.isBlocked === true
+    );
+
+  // =====================================================
+  // TYPING USER
   // =====================================================
 
   const typingUser =
@@ -262,298 +199,191 @@ export default function ChatLayout() {
     "Someone";
 
   // =====================================================
-  // AUTO OPEN SIDEBAR AFTER LOGIN
-  //
-  // When auth user becomes available after login,
-  // make sure the conversation list is accessible.
+  // INITIAL STATE
   // =====================================================
 
   useEffect(() => {
-    if (user?._id) {
+    if (currentUserId) {
       setIsSidebarOpen(true);
     }
-  }, [user?._id]);
+  }, [currentUserId]);
 
   // =====================================================
-  // TYPING START
+  // TYPING EVENTS
   // =====================================================
 
-  const handleTypingStart =
-    useCallback(
-      (userId: string) => {
-        setTypingUserId(userId);
-      },
-      [],
-    );
+  const handleTypingStart = useCallback(
+    (userId: string) => {
+      setTypingUserId(userId);
+    },
+    [],
+  );
 
-  // =====================================================
-  // TYPING STOP
-  // =====================================================
-
-  const handleTypingStop =
-    useCallback(
-      (userId: string) => {
-        setTypingUserId(
-          (currentUserId) => {
-            if (
-              String(currentUserId) ===
-              String(userId)
-            ) {
-              return null;
-            }
-
-            return currentUserId;
-          },
-        );
-      },
-      [],
-    );
-
-  // =====================================================
-  // REALTIME USER BLOCKED
-  // =====================================================
-
-  const handleUserBlocked =
-    useCallback(
-      ({
-        blockerId,
-        blockedId,
-      }: {
-        blockerId: string;
-        blockedId: string;
-      }) => {
-        const normalizedBlockerId =
-          String(blockerId);
-
-        const normalizedBlockedId =
-          String(blockedId);
-
-        const normalizedCurrentUserId =
-          user?._id
-            ? String(user._id)
-            : null;
-
+  const handleTypingStop = useCallback(
+    (userId: string) => {
+      setTypingUserId((currentUserId) => {
         if (
-          !normalizedCurrentUserId
+          String(currentUserId) === String(userId)
         ) {
-          return;
+          return null;
         }
 
-        // ==========================================
-        // EVENT MUST BELONG TO CURRENT USER
-        // ==========================================
+        return currentUserId;
+      });
+    },
+    [],
+  );
 
-        if (
-          normalizedBlockedId !==
-          normalizedCurrentUserId
-        ) {
-          return;
-        }
+  // =====================================================
+  // REALTIME BLOCK EVENT
+  // =====================================================
 
-        // ==========================================
-        // UPDATE CURRENT PROFILE STATE
-        // ==========================================
+  const handleUserBlocked = useCallback(
+    ({
+      blockerId,
+      blockedId,
+    }: {
+      blockerId: string;
+      blockedId: string;
+    }) => {
+      const normalizedBlockerId =
+        String(blockerId);
 
-        const isCurrentProfileTarget =
-          profileUserId &&
-          String(profileUserId) ===
-            normalizedBlockerId;
+      const normalizedBlockedId =
+        String(blockedId);
 
-        // ==========================================
-        // UPDATE CURRENT DIRECT CHAT STATE
-        // ==========================================
+      if (
+        !currentUserId ||
+        normalizedBlockedId !== currentUserId
+      ) {
+        return;
+      }
 
-        const isCurrentDirectChatTarget =
-          selectedDirectOtherUserId &&
-          String(
-            selectedDirectOtherUserId,
-          ) === normalizedBlockerId;
+      const isCurrentProfileTarget =
+        Boolean(profileUserId) &&
+        String(profileUserId) ===
+          normalizedBlockerId;
 
-        if (
-          !isCurrentProfileTarget &&
-          !isCurrentDirectChatTarget
-        ) {
-          return;
-        }
+      const isCurrentDirectChatTarget =
+        Boolean(selectedDirectOtherUserId) &&
+        selectedDirectOtherUserId ===
+          normalizedBlockerId;
 
-        console.log(
-          "REALTIME BLOCK UI UPDATE:",
-          {
-            blockerId:
-              normalizedBlockerId,
-            blockedId:
-              normalizedBlockedId,
-          },
-        );
+      if (
+        !isCurrentProfileTarget &&
+        !isCurrentDirectChatTarget
+      ) {
+        return;
+      }
 
-        // ==========================================
-        // CURRENT USER WAS BLOCKED BY OTHER USER
-        // ==========================================
-
+      // The other user blocked the current user.
+      if (isCurrentProfileTarget) {
         setIsBlocked(true);
-
         setBlockedByMe(false);
-
         setBlockedByOther(true);
-
         setCanUnblock(false);
+      }
 
-        // ==========================================
-        // CANCEL REPLY
-        // ==========================================
+      setReplyingTo(null);
+      setTypingUserId(null);
 
-        setReplyingTo(null);
-
-        // ==========================================
-        // STOP TYPING
-        // ==========================================
-
-        setTypingUserId(null);
-
-        // ==========================================
-        // INVALIDATE PROFILE/BLOCK CACHE
-        // ==========================================
-
-        dispatch(
-          authApi.util.invalidateTags([
-            {
-              type: "Block",
-              id: normalizedBlockerId,
-            },
-            {
-              type: "User",
-              id: normalizedBlockerId,
-            },
-          ]),
-        );
-      },
-      [
-        user?._id,
-        profileUserId,
-        selectedDirectOtherUserId,
-        dispatch,
-      ],
-    );
-
-  // =====================================================
-  // REALTIME USER UNBLOCKED
-  // =====================================================
-
-  const handleUserUnblocked =
-    useCallback(
-      ({
-        blockerId,
-        blockedId,
-      }: {
-        blockerId: string;
-        blockedId: string;
-      }) => {
-        const normalizedBlockerId =
-          String(blockerId);
-
-        const normalizedBlockedId =
-          String(blockedId);
-
-        const normalizedCurrentUserId =
-          user?._id
-            ? String(user._id)
-            : null;
-
-        if (
-          !normalizedCurrentUserId
-        ) {
-          return;
-        }
-
-        // ==========================================
-        // EVENT MUST BELONG TO CURRENT USER
-        // ==========================================
-
-        if (
-          normalizedBlockedId !==
-          normalizedCurrentUserId
-        ) {
-          return;
-        }
-
-        // ==========================================
-        // CHECK CURRENT PROFILE
-        // ==========================================
-
-        const isCurrentProfileTarget =
-          profileUserId &&
-          String(profileUserId) ===
-            normalizedBlockerId;
-
-        // ==========================================
-        // CHECK CURRENT DIRECT CHAT
-        // ==========================================
-
-        const isCurrentDirectChatTarget =
-          selectedDirectOtherUserId &&
-          String(
-            selectedDirectOtherUserId,
-          ) === normalizedBlockerId;
-
-        if (
-          !isCurrentProfileTarget &&
-          !isCurrentDirectChatTarget
-        ) {
-          return;
-        }
-
-        console.log(
-          "REALTIME UNBLOCK UI UPDATE:",
+      dispatch(
+        authApi.util.invalidateTags([
           {
-            blockerId:
-              normalizedBlockerId,
-            blockedId:
-              normalizedBlockedId,
+            type: "Block",
+            id: normalizedBlockerId,
           },
-        );
-
-        // ==========================================
-        // REMOVE BLOCKED STATE
-        // ==========================================
-
-        setIsBlocked(false);
-
-        setBlockedByMe(false);
-
-        setBlockedByOther(false);
-
-        setCanUnblock(false);
-
-        // ==========================================
-        // INVALIDATE CACHE
-        // ==========================================
-
-        dispatch(
-          authApi.util.invalidateTags([
-            {
-              type: "Block",
-              id: normalizedBlockerId,
-            },
-            {
-              type: "User",
-              id: normalizedBlockerId,
-            },
-          ]),
-        );
-      },
-      [
-        user?._id,
-        profileUserId,
-        selectedDirectOtherUserId,
-        dispatch,
-      ],
-    );
+          {
+            type: "User",
+            id: normalizedBlockerId,
+          },
+        ]),
+      );
+    },
+    [
+      currentUserId,
+      profileUserId,
+      selectedDirectOtherUserId,
+      dispatch,
+    ],
+  );
 
   // =====================================================
-  // SOCKET
+  // REALTIME UNBLOCK EVENT
+  // =====================================================
+
+  const handleUserUnblocked = useCallback(
+    ({
+      blockerId,
+      blockedId,
+    }: {
+      blockerId: string;
+      blockedId: string;
+    }) => {
+      const normalizedBlockerId =
+        String(blockerId);
+
+      const normalizedBlockedId =
+        String(blockedId);
+
+      if (
+        !currentUserId ||
+        normalizedBlockedId !== currentUserId
+      ) {
+        return;
+      }
+
+      const isCurrentProfileTarget =
+        Boolean(profileUserId) &&
+        String(profileUserId) ===
+          normalizedBlockerId;
+
+      const isCurrentDirectChatTarget =
+        Boolean(selectedDirectOtherUserId) &&
+        selectedDirectOtherUserId ===
+          normalizedBlockerId;
+
+      if (
+        !isCurrentProfileTarget &&
+        !isCurrentDirectChatTarget
+      ) {
+        return;
+      }
+
+      if (isCurrentProfileTarget) {
+        setIsBlocked(false);
+        setBlockedByMe(false);
+        setBlockedByOther(false);
+        setCanUnblock(false);
+      }
+
+      dispatch(
+        authApi.util.invalidateTags([
+          {
+            type: "Block",
+            id: normalizedBlockerId,
+          },
+          {
+            type: "User",
+            id: normalizedBlockerId,
+          },
+        ]),
+      );
+    },
+    [
+      currentUserId,
+      profileUserId,
+      selectedDirectOtherUserId,
+      dispatch,
+    ],
+  );
+
+  // =====================================================
+  // SOCKET + WEBRTC
   // =====================================================
 
   const {
+    // Existing chat actions
     sendTypingStart,
     sendTypingStop,
     markMessageAsRead,
@@ -561,30 +391,137 @@ export default function ChatLayout() {
     editMessageRealtime,
     toggleMessageReactionRealtime,
     disconnectSocket,
+
+    // WebRTC state
+    callStatus,
+    incomingCall,
+    activeCallId,
+    callType,
+    localStream,
+    remoteStream,
+    callError,
+    isMicrophoneEnabled,
+    isCameraEnabled,
+
+    // WebRTC actions
+    startCall,
+    acceptCall,
+    rejectCall,
+    cancelCall,
+    endCall,
+    toggleMicrophone,
+    toggleCamera,
   } = useChatSocket({
-    conversationId:
-      selectedConversationId,
-
-    onTypingStart:
-      handleTypingStart,
-
-    onTypingStop:
-      handleTypingStop,
-
-    // ==========================================
-    // REALTIME BLOCK EVENTS
-    // ==========================================
-
-    onUserBlocked:
-      handleUserBlocked,
-
-    onUserUnblocked:
-      handleUserUnblocked,
+    conversationId: selectedConversationId,
+    onTypingStart: handleTypingStart,
+    onTypingStop: handleTypingStop,
+    onUserBlocked: handleUserBlocked,
+    onUserUnblocked: handleUserUnblocked,
   });
+
+  // =====================================================
+  // START AUDIO / VIDEO CALL
+  // =====================================================
+
+  const handleStartCall = useCallback(
+    async (
+      receiverId: string,
+      type: CallType,
+    ): Promise<boolean> => {
+      if (
+        !receiverId ||
+        !currentUserId ||
+        receiverId === currentUserId
+      ) {
+        return false;
+      }
+
+      if (isCurrentChatBlocked) {
+        console.warn(
+          "Cannot call a blocked user.",
+        );
+        return false;
+      }
+
+      if (
+        callStatus !== "idle" &&
+        callStatus !== "ended"
+      ) {
+        console.warn(
+          "A call is already in progress.",
+        );
+        return false;
+      }
+
+      try {
+        return await startCall(receiverId, type);
+      } catch (error) {
+        console.error(
+          "Failed to start call:",
+          error,
+        );
+
+        return false;
+      }
+    },
+    [
+      currentUserId,
+      isCurrentChatBlocked,
+      callStatus,
+      startCall,
+    ],
+  );
+
+  const handleStartAudioCall = useCallback(
+    () => {
+      if (!selectedDirectOtherUserId) {
+        return;
+      }
+
+      void handleStartCall(
+        selectedDirectOtherUserId,
+        "audio",
+      );
+    },
+    [
+      selectedDirectOtherUserId,
+      handleStartCall,
+    ],
+  );
+
+  const handleStartVideoCall = useCallback(
+    () => {
+      if (!selectedDirectOtherUserId) {
+        return;
+      }
+
+      void handleStartCall(
+        selectedDirectOtherUserId,
+        "video",
+      );
+    },
+    [
+      selectedDirectOtherUserId,
+      handleStartCall,
+    ],
+  );
+
+  const isCallDisabled =
+    !selectedDirectOtherUserId ||
+    isCurrentChatBlocked ||
+    (
+      callStatus !== "idle" &&
+      callStatus !== "ended"
+    );
 
   // =====================================================
   // PROFILE API
   // =====================================================
+
+  const isOwnProfile =
+    Boolean(profileUserId) &&
+    String(profileUserId) ===
+      String(currentUserId);
 
   const {
     data: fetchedProfileUser,
@@ -593,56 +530,32 @@ export default function ChatLayout() {
     {
       skip:
         !profileUserId ||
-        String(profileUserId) ===
-          String(user?._id),
+        isOwnProfile,
     },
   );
 
-  // =====================================================
-  // BLOCK STATUS API
-  // =====================================================
-
   const {
     data: blockStatus,
-    isLoading:
-      isBlockStatusLoading,
+    isLoading: isBlockStatusLoading,
   } = useGetBlockStatusQuery(
     profileUserId as string,
     {
       skip:
         !profileUserId ||
-        String(profileUserId) ===
-          String(user?._id),
+        isOwnProfile,
     },
   );
 
   // =====================================================
-  // SYNC BLOCK STATUS
+  // SYNC PROFILE BLOCK STATUS
   // =====================================================
 
   useEffect(() => {
-    if (!profileUserId) {
+    if (!profileUserId || isOwnProfile) {
       setIsBlocked(false);
       setBlockedByMe(false);
       setBlockedByOther(false);
       setCanUnblock(false);
-
-      return;
-    }
-
-    // ==========================================
-    // OWN PROFILE
-    // ==========================================
-
-    if (
-      String(profileUserId) ===
-      String(user?._id)
-    ) {
-      setIsBlocked(false);
-      setBlockedByMe(false);
-      setBlockedByOther(false);
-      setCanUnblock(false);
-
       return;
     }
 
@@ -668,225 +581,143 @@ export default function ChatLayout() {
   }, [
     blockStatus,
     profileUserId,
-    user?._id,
+    isOwnProfile,
   ]);
 
   // =====================================================
-  // BLOCK USER MUTATION
+  // MUTATIONS
   // =====================================================
 
   const [
     blockUser,
-    {
-      isLoading: isBlocking,
-    },
+    { isLoading: isBlocking },
   ] = useBlockUserMutation();
-
-  // =====================================================
-  // UNBLOCK USER MUTATION
-  // =====================================================
 
   const [
     unblockUser,
-    {
-      isLoading: isUnblocking,
-    },
+    { isLoading: isUnblocking },
   ] = useUnblockUserMutation();
-
-  // =====================================================
-  // UPDATE AVATAR
-  // =====================================================
 
   const [
     updateMyAvatar,
-    {
-      isLoading:
-        isUploadingAvatar,
-    },
+    { isLoading: isUploadingAvatar },
   ] = useUpdateMyAvatarMutation();
-
-  // =====================================================
-  // UPDATE PROFILE
-  // =====================================================
 
   const [
     updateMyProfile,
-    {
-      isLoading:
-        isUpdatingProfile,
-    },
+    { isLoading: isUpdatingProfile },
   ] = useUpdateMyProfileMutation();
 
   // =====================================================
   // SEND MESSAGE
   // =====================================================
 
-  const handleSendMessage =
-    async (
-      payload: MessageSendPayload,
-    ) => {
-      try {
-        if (
-          !selectedConversationId
-        ) {
-          return;
-        }
+  const handleSendMessage = async (
+    payload: MessageSendPayload,
+  ) => {
+    if (
+      !selectedConversationId ||
+      isCurrentChatBlocked
+    ) {
+      return;
+    }
 
-        // ==========================================
-        // BLOCKED RELATIONSHIP
-        // ==========================================
+    try {
+      const messagePayload = {
+        ...payload,
+        conversationId: selectedConversationId,
+        ...(replyingTo?._id
+          ? {
+              replyTo: replyingTo._id,
+            }
+          : {}),
+      };
 
-        if (isBlocked) {
-          console.warn(
-            "Cannot send message. User is blocked.",
-          );
+      await sendMessage(
+        messagePayload,
+      ).unwrap();
 
-          return;
-        }
-
-        const messagePayload = {
-          ...payload,
-
-          conversationId:
-            selectedConversationId,
-
-          ...(replyingTo?._id
-            ? {
-                replyTo:
-                  replyingTo._id,
-              }
-            : {}),
-        };
-
-        await sendMessage(
-          messagePayload,
-        ).unwrap();
-
-        // ==========================================
-        // CLEAR REPLY MODE
-        // ==========================================
-
-        setReplyingTo(null);
-      } catch (error) {
-        console.error(
-          "Send message failed:",
-          error,
-        );
-      }
-    };
+      setReplyingTo(null);
+    } catch (error) {
+      console.error(
+        "Send message failed:",
+        error,
+      );
+    }
+  };
 
   // =====================================================
   // SELECT CONVERSATION
   // =====================================================
 
-  const handleSelectConversation =
-    (
-      conversationId: string,
-    ) => {
-      setTypingUserId(null);
+  const handleSelectConversation = (
+    conversationId: string,
+  ) => {
+    setTypingUserId(null);
+    setReplyingTo(null);
 
-      setReplyingTo(null);
+    setIsProfileOpen(false);
+    setProfileUserId(null);
 
-      setIsProfileOpen(false);
+    setIsBlocked(false);
+    setBlockedByMe(false);
+    setBlockedByOther(false);
+    setCanUnblock(false);
 
-      setProfileUserId(null);
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
 
-      setIsBlocked(false);
-      setBlockedByMe(false);
-      setBlockedByOther(false);
-      setCanUnblock(false);
+    dispatch(
+      conversationApi.util.updateQueryData(
+        "getConversations",
+        undefined,
+        (draft) => {
+          const conversation = draft.find(
+            (item) =>
+              String(item._id) ===
+              String(conversationId),
+          );
 
-      setIsEditingProfile(false);
+          if (conversation) {
+            conversation.unreadCount = 0;
+          }
+        },
+      ),
+    );
 
-      setEditName("");
+    setSelectedConversationId(
+      conversationId,
+    );
 
-      setEditBio("");
-
-      // ==========================================
-      // CLEAR UNREAD COUNT
-      // ==========================================
-
-      dispatch(
-        conversationApi.util.updateQueryData(
-          "getConversations",
-          undefined,
-          (draft) => {
-            const conversation =
-              draft.find(
-                (item) =>
-                  String(
-                    item._id,
-                  ) ===
-                  String(
-                    conversationId,
-                  ),
-              );
-
-            if (!conversation) {
-              return;
-            }
-
-            conversation.unreadCount =
-              0;
-          },
-        ),
-      );
-
-      // ==========================================
-      // SELECT CONVERSATION
-      // ==========================================
-
-      setSelectedConversationId(
-        conversationId,
-      );
-
-      // ==========================================
-      // MOBILE:
-      // CLOSE SIDEBAR
-      // ==========================================
-
-      setIsSidebarOpen(false);
-    };
+    setIsSidebarOpen(false);
+  };
 
   // =====================================================
-  // REPLY MESSAGE
+  // MESSAGE ACTIONS
   // =====================================================
 
-  const handleReplyMessage =
-    (message: Message) => {
-      if (isBlocked) {
-        return;
-      }
-
+  const handleReplyMessage = (
+    message: Message,
+  ) => {
+    if (!isCurrentChatBlocked) {
       setReplyingTo(message);
-    };
+    }
+  };
 
-  // =====================================================
-  // CANCEL REPLY
-  // =====================================================
-
-  const handleCancelReply =
-    () => {
-      setReplyingTo(null);
-    };
-
-  // =====================================================
-  // EDIT MESSAGE
-  // =====================================================
+  const handleCancelReply = () => {
+    setReplyingTo(null);
+  };
 
   const handleEditMessage = (
     messageId: string,
     text: string,
   ): boolean => {
-    if (!messageId) {
-      return false;
-    }
-
-    if (!text.trim()) {
-      return false;
-    }
-
-    if (isBlocked) {
+    if (
+      !messageId ||
+      !text.trim() ||
+      isCurrentChatBlocked
+    ) {
       return false;
     }
 
@@ -896,23 +727,15 @@ export default function ChatLayout() {
     );
   };
 
-  // =====================================================
-  // REACTION
-  // =====================================================
-
   const handleReactionMessage = (
     messageId: string,
     emoji: string,
   ): boolean => {
-    if (!messageId) {
-      return false;
-    }
-
-    if (!emoji) {
-      return false;
-    }
-
-    if (isBlocked) {
+    if (
+      !messageId ||
+      !emoji ||
+      isCurrentChatBlocked
+    ) {
       return false;
     }
 
@@ -923,507 +746,341 @@ export default function ChatLayout() {
   };
 
   // =====================================================
-  // OPEN SIDEBAR
+  // SIDEBAR
   // =====================================================
 
-  const handleOpenSidebar =
-    useCallback(() => {
+  const handleOpenSidebar = useCallback(
+    () => {
       setIsSidebarOpen(true);
-    }, []);
+    },
+    [],
+  );
 
-  // =====================================================
-  // CLOSE SIDEBAR
-  // =====================================================
-
-  const handleCloseSidebar =
-    useCallback(() => {
+  const handleCloseSidebar = useCallback(
+    () => {
       setIsSidebarOpen(false);
-    }, []);
+    },
+    [],
+  );
 
   // =====================================================
   // OPEN OTHER USER PROFILE
   // =====================================================
 
-  const handleOpenProfile =
-    () => {
-      if (!selectedConversation) {
-        return;
-      }
+  const handleOpenProfile = () => {
+    if (
+      !selectedConversation ||
+      selectedConversation.type !== "direct"
+    ) {
+      return;
+    }
 
-      if (
-        selectedConversation.type !==
-        "direct"
-      ) {
-        return;
-      }
-
-      const otherUser =
-        selectedConversation.participants.find(
-          (participant) =>
-            String(
-              participant._id,
-            ) !==
-            String(user?._id),
-        );
-
-      if (!otherUser) {
-        return;
-      }
-
-      setIsEditingProfile(false);
-
-      setEditName("");
-
-      setEditBio("");
-
-      // ==========================================
-      // RESET OLD BLOCK STATE
-      // ==========================================
-
-      setIsBlocked(false);
-
-      setBlockedByMe(false);
-
-      setBlockedByOther(false);
-
-      setCanUnblock(false);
-
-      setProfileUserId(
-        String(otherUser._id),
+    const otherUser =
+      selectedConversation.participants.find(
+        (participant) =>
+          String(participant._id) !==
+          String(currentUserId),
       );
 
-      setIsProfileOpen(true);
-    };
+    if (!otherUser?._id) {
+      return;
+    }
+
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
+
+    setIsBlocked(false);
+    setBlockedByMe(false);
+    setBlockedByOther(false);
+    setCanUnblock(false);
+
+    setProfileUserId(
+      String(otherUser._id),
+    );
+
+    setIsProfileOpen(true);
+  };
 
   // =====================================================
   // OPEN OWN PROFILE
   // =====================================================
 
-  const handleOpenOwnProfile =
-    () => {
-      if (!user?._id) {
-        return;
-      }
+  const handleOpenOwnProfile = () => {
+    if (!currentUserId) {
+      return;
+    }
 
-      setIsEditingProfile(false);
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
 
-      setEditName("");
+    setIsBlocked(false);
+    setBlockedByMe(false);
+    setBlockedByOther(false);
+    setCanUnblock(false);
 
-      setEditBio("");
-
-      setIsBlocked(false);
-
-      setBlockedByMe(false);
-
-      setBlockedByOther(false);
-
-      setCanUnblock(false);
-
-      setProfileUserId(
-        String(user._id),
-      );
-
-      setIsProfileOpen(true);
-    };
+    setProfileUserId(currentUserId);
+    setIsProfileOpen(true);
+  };
 
   // =====================================================
   // CLOSE PROFILE
   // =====================================================
 
-  const handleCloseProfile =
-    () => {
-      setIsProfileOpen(false);
+  const handleCloseProfile = () => {
+    setIsProfileOpen(false);
+    setProfileUserId(null);
 
-      setProfileUserId(null);
+    setIsBlocked(false);
+    setBlockedByMe(false);
+    setBlockedByOther(false);
+    setCanUnblock(false);
 
-      setIsBlocked(false);
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
+  };
 
-      setBlockedByMe(false);
+  // =====================================================
+  // EDIT PROFILE
+  // =====================================================
 
-      setBlockedByOther(false);
+  const handleStartEditProfile = () => {
+    if (!user) {
+      return;
+    }
 
-      setCanUnblock(false);
+    setEditName(user.name ?? "");
+    setEditBio(user.bio ?? "");
+    setIsEditingProfile(true);
+  };
+
+  const handleCancelEditProfile = () => {
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
+  };
+
+  const handleSaveProfile = async () => {
+    if (!currentUserId) {
+      return;
+    }
+
+    const name = editName.trim();
+    const bio = editBio.trim();
+
+    if (!name) {
+      return;
+    }
+
+    try {
+      const updatedUser =
+        await updateMyProfile({
+          name,
+          bio,
+        }).unwrap();
+
+      dispatch(updateUser(updatedUser));
 
       setIsEditingProfile(false);
-
       setEditName("");
-
       setEditBio("");
-    };
-
-  // =====================================================
-  // START EDIT PROFILE
-  // =====================================================
-
-  const handleStartEditProfile =
-    () => {
-      if (!user) {
-        return;
-      }
-
-      setEditName(
-        user.name ?? "",
+    } catch (error) {
+      console.error(
+        "Profile update failed:",
+        error,
       );
-
-      setEditBio(
-        user.bio ?? "",
-      );
-
-      setIsEditingProfile(true);
-    };
-
-  // =====================================================
-  // CANCEL EDIT PROFILE
-  // =====================================================
-
-  const handleCancelEditProfile =
-    () => {
-      setIsEditingProfile(false);
-
-      setEditName("");
-
-      setEditBio("");
-    };
-
-  // =====================================================
-  // SAVE PROFILE
-  // =====================================================
-
-  const handleSaveProfile =
-    async () => {
-      if (!user?._id) {
-        return;
-      }
-
-      const name =
-        editName.trim();
-
-      const bio =
-        editBio.trim();
-
-      if (!name) {
-        return;
-      }
-
-      try {
-        const updatedUser =
-          await updateMyProfile({
-            name,
-            bio,
-          }).unwrap();
-
-        // ==========================================
-        // UPDATE REDUX AUTH USER
-        // ==========================================
-
-        dispatch(
-          updateUser(
-            updatedUser,
-          ),
-        );
-
-        // ==========================================
-        // EXIT EDIT MODE
-        // ==========================================
-
-        setIsEditingProfile(
-          false,
-        );
-
-        setEditName("");
-
-        setEditBio("");
-      } catch (error) {
-        console.error(
-          "Profile update failed:",
-          error,
-        );
-      }
-    };
+    }
+  };
 
   // =====================================================
   // AVATAR CHANGE
   // =====================================================
 
-  const handleAvatarChange =
-    async (
-      file: File,
-    ) => {
-      if (!user?._id) {
-        return;
-      }
+  const handleAvatarChange = async (
+    file: File,
+  ) => {
+    if (!currentUserId) {
+      return;
+    }
 
-      try {
-        const formData =
-          new FormData();
+    try {
+      const formData = new FormData();
 
-        formData.append(
-          "avatar",
-          file,
-        );
+      formData.append(
+        "avatar",
+        file,
+      );
 
-        const updatedUser =
-          await updateMyAvatar(
-            formData,
-          ).unwrap();
+      const updatedUser =
+        await updateMyAvatar(
+          formData,
+        ).unwrap();
 
-        // ==========================================
-        // UPDATE REDUX USER
-        // ==========================================
-
-        dispatch(
-          updateUser(
-            updatedUser,
-          ),
-        );
-      } catch (error) {
-        console.error(
-          "Avatar update failed:",
-          error,
-        );
-      }
-    };
+      dispatch(updateUser(updatedUser));
+    } catch (error) {
+      console.error(
+        "Avatar update failed:",
+        error,
+      );
+    }
+  };
 
   // =====================================================
   // BLOCK USER
   // =====================================================
 
-  const handleBlockUser =
-    async () => {
-      if (!profileUserId) {
-        return;
-      }
+  const handleBlockUser = async () => {
+    if (
+      !profileUserId ||
+      String(profileUserId) ===
+        String(currentUserId)
+    ) {
+      return;
+    }
 
-      if (
-        String(profileUserId) ===
-        String(user?._id)
-      ) {
-        return;
-      }
+    const targetUserId =
+      String(profileUserId);
 
-      const targetUserId =
-        String(profileUserId);
+    try {
+      await blockUser(
+        targetUserId,
+      ).unwrap();
 
-      try {
-        await blockUser(
-          targetUserId,
-        ).unwrap();
+      setIsBlocked(true);
+      setBlockedByMe(true);
+      setBlockedByOther(false);
+      setCanUnblock(true);
 
-        // ==========================================
-        // IMMEDIATE UI UPDATE
-        // ==========================================
+      setReplyingTo(null);
+      setTypingUserId(null);
 
-        setIsBlocked(true);
-
-        setBlockedByMe(true);
-
-        setBlockedByOther(false);
-
-        setCanUnblock(true);
-
-        // ==========================================
-        // CANCEL REPLY
-        // ==========================================
-
-        setReplyingTo(null);
-
-        setTypingUserId(null);
-
-        // ==========================================
-        // INVALIDATE BLOCK CACHE
-        // ==========================================
-
-        dispatch(
-          authApi.util.invalidateTags([
-            {
-              type: "Block",
-              id: targetUserId,
-            },
-            {
-              type: "User",
-              id: targetUserId,
-            },
-          ]),
-        );
-      } catch (error) {
-        console.error(
-          "Block user failed:",
-          error,
-        );
-      }
-    };
+      dispatch(
+        authApi.util.invalidateTags([
+          {
+            type: "Block",
+            id: targetUserId,
+          },
+          {
+            type: "User",
+            id: targetUserId,
+          },
+        ]),
+      );
+    } catch (error) {
+      console.error(
+        "Block user failed:",
+        error,
+      );
+    }
+  };
 
   // =====================================================
   // UNBLOCK USER
   // =====================================================
 
-  const handleUnblockUser =
-    async () => {
-      if (!profileUserId) {
-        return;
-      }
+  const handleUnblockUser = async () => {
+    if (
+      !profileUserId ||
+      String(profileUserId) ===
+        String(currentUserId) ||
+      !canUnblock
+    ) {
+      return;
+    }
 
-      if (
-        String(profileUserId) ===
-        String(user?._id)
-      ) {
-        return;
-      }
+    const targetUserId =
+      String(profileUserId);
 
-      // ==========================================
-      // ONLY BLOCKER CAN UNBLOCK
-      // ==========================================
+    try {
+      await unblockUser(
+        targetUserId,
+      ).unwrap();
 
-      if (!canUnblock) {
-        console.warn(
-          "Cannot unblock. Current user is not the blocker.",
-        );
+      setIsBlocked(false);
+      setBlockedByMe(false);
+      setBlockedByOther(false);
+      setCanUnblock(false);
 
-        return;
-      }
-
-      const targetUserId =
-        String(profileUserId);
-
-      try {
-        await unblockUser(
-          targetUserId,
-        ).unwrap();
-
-        // ==========================================
-        // IMMEDIATE UI UPDATE
-        // ==========================================
-
-        setIsBlocked(false);
-
-        setBlockedByMe(false);
-
-        setBlockedByOther(false);
-
-        setCanUnblock(false);
-
-        // ==========================================
-        // INVALIDATE BLOCK CACHE
-        // ==========================================
-
-        dispatch(
-          authApi.util.invalidateTags([
-            {
-              type: "Block",
-              id: targetUserId,
-            },
-            {
-              type: "User",
-              id: targetUserId,
-            },
-          ]),
-        );
-      } catch (error) {
-        console.error(
-          "Unblock user failed:",
-          error,
-        );
-      }
-    };
+      dispatch(
+        authApi.util.invalidateTags([
+          {
+            type: "Block",
+            id: targetUserId,
+          },
+          {
+            type: "User",
+            id: targetUserId,
+          },
+        ]),
+      );
+    } catch (error) {
+      console.error(
+        "Unblock user failed:",
+        error,
+      );
+    }
+  };
 
   // =====================================================
   // LOGOUT
   // =====================================================
 
-  const handleLogout =
-    () => {
-      try {
-        // ==========================================
-        // CLOSE UI
-        // ==========================================
+  const handleLogout = async () => {
+    try {
+      // End the call before disconnecting the socket.
+      await Promise.resolve(endCall());
+    } catch (error) {
+      console.error(
+        "Call cleanup failed:",
+        error,
+      );
+    }
 
-        setIsProfileOpen(false);
+    try {
+      disconnectSocket();
+    } catch (error) {
+      console.error(
+        "Socket disconnect failed:",
+        error,
+      );
+    }
 
-        setProfileUserId(null);
+    setIsProfileOpen(false);
+    setProfileUserId(null);
+    setReplyingTo(null);
+    setSelectedConversationId(null);
 
-        setReplyingTo(null);
+    setIsBlocked(false);
+    setBlockedByMe(false);
+    setBlockedByOther(false);
+    setCanUnblock(false);
 
-        setSelectedConversationId(
-          null,
-        );
+    setIsEditingProfile(false);
+    setEditName("");
+    setEditBio("");
+    setIsSidebarOpen(false);
+    setTypingUserId(null);
 
-        setIsBlocked(false);
+    dispatch(logout());
+    dispatch(authApi.util.resetApiState());
 
-        setBlockedByMe(false);
-
-        setBlockedByOther(false);
-
-        setCanUnblock(false);
-
-        setIsEditingProfile(false);
-
-        setEditName("");
-
-        setEditBio("");
-
-        setIsSidebarOpen(false);
-
-        // ==========================================
-        // DISCONNECT SOCKET
-        // ==========================================
-
-        disconnectSocket();
-
-        // ==========================================
-        // CLEAR AUTH
-        // ==========================================
-
-        dispatch(logout());
-
-        // ==========================================
-        // CLEAR RTK QUERY CACHE
-        // ==========================================
-
-        dispatch(
-          authApi.util.resetApiState(),
-        );
-
-        // ==========================================
-        // LOGIN PAGE
-        // ==========================================
-
-        router.replace("/login");
-      } catch (error) {
-        console.error(
-          "Logout failed:",
-          error,
-        );
-
-        router.replace("/login");
-      }
-    };
+    router.replace("/login");
+  };
 
   // =====================================================
-  // TYPING STATUS
+  // DERIVED STATE
   // =====================================================
 
   const isTyping =
     typingUserId !== null &&
     String(typingUserId) !==
-      String(user?._id);
+      String(currentUserId);
 
-  // =====================================================
-  // PROFILE USER
-  // =====================================================
-
-  const isOwnProfile =
-    String(profileUserId) ===
-    String(user?._id);
-
-  const profileUser =
-    isOwnProfile
-      ? user
-      : fetchedProfileUser ??
-        null;
-
-  // =====================================================
-  // BLOCK LOADING
-  // =====================================================
+  const profileUser = isOwnProfile
+    ? user
+    : fetchedProfileUser ?? null;
 
   const isBlockLoading =
     isBlocking ||
@@ -1437,18 +1094,10 @@ export default function ChatLayout() {
   return (
     <div
       className="
-        relative
-        flex
-        h-screen
-        min-h-0
-        overflow-hidden
-        bg-slate-50
+        relative flex h-screen min-h-0
+        overflow-hidden bg-slate-50
       "
     >
-      {/* =================================================
-          CHAT SIDEBAR
-      ================================================= */}
-
       <ChatSidebar
         selectedConversationId={
           selectedConversationId
@@ -1456,74 +1105,42 @@ export default function ChatLayout() {
         onSelectConversation={
           handleSelectConversation
         }
-        isOpen={
-          isSidebarOpen
-        }
-        onClose={
-          handleCloseSidebar
-        }
-        onOpenProfile={
-          handleOpenOwnProfile
-        }
+        isOpen={isSidebarOpen}
+        onClose={handleCloseSidebar}
+        onOpenProfile={handleOpenOwnProfile}
       />
 
-      {/* =================================================
-          MOBILE SIDEBAR OVERLAY
-      ================================================= */}
+      {/* MOBILE SIDEBAR OVERLAY */}
 
       {isSidebarOpen && (
         <button
           type="button"
           aria-label="Close sidebar"
-          onClick={
-            handleCloseSidebar
-          }
+          onClick={handleCloseSidebar}
           className="
-            absolute
-            inset-0
-            z-30
-            bg-black/20
-            lg:hidden
+            absolute inset-0 z-30
+            bg-black/20 lg:hidden
           "
         />
       )}
 
-      {/* =================================================
-          MOBILE FALLBACK MENU BUTTON
-          
-          When sidebar is closed and user is on mobile,
-          this button is always available.
-      ================================================= */}
+      {/* MOBILE MENU BUTTON */}
 
       {!isSidebarOpen && (
         <button
           type="button"
-          onClick={
-            handleOpenSidebar
-          }
+          onClick={handleOpenSidebar}
           aria-label="Open conversations"
           title="Open conversations"
           className="
-            fixed
-            left-3
-            top-3
-            z-[60]
-            flex
-            h-11
-            w-11
-            items-center
-            justify-center
-            rounded-xl
-            border
-            border-slate-200
-            bg-white
-            text-slate-700
-            shadow-lg
+            fixed left-3 top-3 z-[60]
+            flex h-11 w-11 items-center
+            justify-center rounded-xl
+            border border-slate-200
+            bg-white text-slate-700 shadow-lg
             transition
-            hover:bg-slate-50
-            hover:text-slate-900
-            active:scale-95
-            lg:hidden
+            hover:bg-slate-50 hover:text-slate-900
+            active:scale-95 lg:hidden
           "
         >
           <Menu
@@ -1533,102 +1150,72 @@ export default function ChatLayout() {
         </button>
       )}
 
-      {/* =================================================
-          CHAT UI
-      ================================================= */}
+      {/* CHAT UI */}
 
       <ChatUI
-        conversation={
-          selectedConversation
+        // Existing chat props
+        conversation={selectedConversation}
+        currentUserId={user?._id}
+        onOpenSidebar={handleOpenSidebar}
+        onOpenProfile={handleOpenProfile}
+        onSendMessage={handleSendMessage}
+        onTypingStart={sendTypingStart}
+        onTypingStop={sendTypingStop}
+        markMessageAsRead={markMessageAsRead}
+        onDeleteMessage={deleteMessageRealtime}
+        onEditMessage={handleEditMessage}
+        onReactionMessage={handleReactionMessage}
+        isTyping={isTyping}
+        typingUserName={typingUserName}
+        replyingTo={replyingTo}
+        onReplyMessage={handleReplyMessage}
+        onCancelReply={handleCancelReply}
+        isSending={isSending}
+        isBlocked={isCurrentChatBlocked}
+
+        // WebRTC state
+        callStatus={callStatus}
+        incomingCall={incomingCall}
+        activeCallId={activeCallId}
+        callType={callType}
+        localStream={localStream}
+        remoteStream={remoteStream}
+        callError={callError}
+        isMicrophoneEnabled={
+          isMicrophoneEnabled
         }
-        currentUserId={
-          user?._id
-        }
-        onOpenSidebar={
-          handleOpenSidebar
-        }
-        onOpenProfile={
-          handleOpenProfile
-        }
-        onSendMessage={
-          handleSendMessage
-        }
-        onTypingStart={
-          sendTypingStart
-        }
-        onTypingStop={
-          sendTypingStop
-        }
-        markMessageAsRead={
-          markMessageAsRead
-        }
-        onDeleteMessage={
-          deleteMessageRealtime
-        }
-        onEditMessage={
-          handleEditMessage
-        }
-        onReactionMessage={
-          handleReactionMessage
-        }
-        isTyping={
-          isTyping
-        }
-        typingUserName={
-          typingUserName
-        }
-        replyingTo={
-          replyingTo
-        }
-        onReplyMessage={
-          handleReplyMessage
-        }
-        onCancelReply={
-          handleCancelReply
-        }
-        isSending={
-          isSending
-        }
-        isBlocked={
-          isBlocked
-        }
+        isCameraEnabled={isCameraEnabled}
+
+        // WebRTC actions
+        onStartCall={handleStartCall}
+        onAcceptCall={acceptCall}
+        onRejectCall={rejectCall}
+        onCancelCall={cancelCall}
+        onEndCall={endCall}
+        onToggleMicrophone={toggleMicrophone}
+        onToggleCamera={toggleCamera}
+
+        // ChatHeader call buttons
+       
+       
+        isCallDisabled={isCallDisabled}
       />
 
-      {/* =================================================
-          PROFILE MODAL
-      ================================================= */}
+      {/* PROFILE MODAL */}
 
       <ProfileModal
-        user={
-          profileUser
-        }
-        isOwnProfile={
-          isOwnProfile
-        }
-        isOpen={
-          isProfileOpen
-        }
-        onClose={
-          handleCloseProfile
-        }
+        user={profileUser}
+        isOwnProfile={isOwnProfile}
+        isOpen={isProfileOpen}
+        onClose={handleCloseProfile}
         onEditProfile={
           handleStartEditProfile
         }
-        onLogout={
-          handleLogout
-        }
-        onBlock={
-          handleBlockUser
-        }
-        onUnblock={
-          handleUnblockUser
-        }
-        isBlocked={
-          isBlocked
-        }
-        isBlockLoading={
-          isBlockLoading
-        }
+        onLogout={handleLogout}
+        onBlock={handleBlockUser}
+        onUnblock={handleUnblockUser}
+        isBlocked={isBlocked}
+        isBlockLoading={isBlockLoading}
         isUploadingAvatar={
           isUploadingAvatar
         }
@@ -1637,47 +1224,21 @@ export default function ChatLayout() {
             ? handleAvatarChange
             : undefined
         }
-        isEditing={
-          isEditingProfile
-        }
-        editName={
-          editName
-        }
-        editBio={
-          editBio
-        }
-        onEditNameChange={
-          setEditName
-        }
-        onEditBioChange={
-          setEditBio
-        }
-        onSaveProfile={
-          handleSaveProfile
-        }
-        onCancelEdit={
-          handleCancelEditProfile
-        }
+        isEditing={isEditingProfile}
+        editName={editName}
+        editBio={editBio}
+        onEditNameChange={setEditName}
+        onEditBioChange={setEditBio}
+        onSaveProfile={handleSaveProfile}
+        onCancelEdit={handleCancelEditProfile}
         isUpdatingProfile={
           isUpdatingProfile
         }
-
-        // ==========================================
-        // BLOCK PROPS
-        // ==========================================
-
-        blockedByMe={
-          blockedByMe
-        }
-
-        blockedByOther={
-          blockedByOther
-        }
-
-        canUnblock={
-          canUnblock
-        }
+        blockedByMe={blockedByMe}
+        blockedByOther={blockedByOther}
+        canUnblock={canUnblock}
       />
     </div>
   );
 }
+ 
